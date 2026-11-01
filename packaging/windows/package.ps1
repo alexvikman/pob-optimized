@@ -21,5 +21,7 @@ if ($Stage.ExitCode -ne 0) { throw "staging PoB failed with exit code $($Stage.E
 
 $Zip = Join-Path $Out "PathOfBuilding-win64.zip"
 if (Test-Path $Zip) { Remove-Item -Force $Zip }
-Compress-Archive -Path $Dir -DestinationPath $Zip
+# Files at the zip's root: Explorer's "Extract All" already makes a folder named
+# after the zip, so a top-level folder inside would nest twice.
+Compress-Archive -Path (Join-Path $Dir "*") -DestinationPath $Zip
 Write-Host "Built $Zip"
