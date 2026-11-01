@@ -88,12 +88,34 @@ Per frame in the tree view, PoB's `OnFrame` takes 4–15 ms of Lua, and up to 40
 while a build is loading or the tree search is active. Rendering takes 2–5 ms for
 about 10,000 quads.
 
+### Windows
+
+The tests ran in a Windows 11 24H2 VM (VMPal on the same Mac, 4 vCPUs, GPU
+acceleration on). The Mac is Apple Silicon, so the VM runs **Windows on ARM**, and
+the x64 build runs through Microsoft's Prism emulation. Absolute numbers are
+therefore not those of an x64 PC. The two modes still compare fairly, since they
+run the same binary in the same VM. CPU is `TotalProcessorTime` over 20 s after a
+15 s warm-up, with the passive tree of a new build and the window left alone.
+
+| Mode | Window | CPU (one core = 100 %) | `OnFrame` calls | GPU frames |
+|---|---|---|---|---|
+| `continuous` (behaves like the original) | in front | **83.1 %** | 55/s | every frame |
+| `adaptive` | focused | **5.3 %** | 0.5/s | 0 |
+| `adaptive` | in the background | **0.0 %** | 0 | 0 |
+
+Under emulation a single `OnFrame` costs 35–45 ms (4–15 ms natively on the Mac),
+which is why the adaptive figure for a focused window is higher than on macOS.
+
+The test also turned up a packaging bug: the exe needed the Visual C++
+Redistributable (`VCRUNTIME140_1.dll`), which CI runners have but a clean Windows
+does not. Everything now links the runtime statically, and CI fails if the exe
+depends on `vcruntime`/`msvcp` DLLs.
+
 ### Not measured yet
 
 - **GPU power on its own.** `sudo powermetrics --samplers gpu_power` needs root.
   Energy impact covers the whole process, and in adaptive idle the GPU renders
   nothing.
-- **Windows.** Task Manager measurements will follow once the Windows build runs.
 - **Live resize.** It needs a person dragging the window edge.
 
 To reproduce:

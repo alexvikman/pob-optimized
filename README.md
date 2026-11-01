@@ -84,8 +84,10 @@ The log is written to `host.log` in the data directory.
 
 ### Power use
 
-The host only redraws when something happens: about 0.8 % CPU with the passive
-tree idle, compared with 52 % when redrawing continuously like the original. The
+The host only redraws when something happens. With the passive tree idle it uses
+about 0.8 % CPU on macOS, against 52 % when redrawing continuously like the
+original. On Windows (measured in a VM) it uses 5.3 % focused and 0 % in the
+background, against 83 %. The
 rates can be set in `host-settings.ini`; see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ### Updates
