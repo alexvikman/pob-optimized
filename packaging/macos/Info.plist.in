@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Path of Building</string>
+    <key>CFBundleDisplayName</key>
+    <string>Path of Building</string>
+    <key>CFBundleIdentifier</key>
+    <string>io.github.alexvikman.pathofbuilding-native</string>
+    <key>CFBundleExecutable</key>
+    <string>PathOfBuilding</string>
+    <key>CFBundleIconFile</key>
+    <string>PathOfBuilding</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@HOST_VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@HOST_VERSION@ (PoB @POB_VERSION@)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Path of Building © PoB Community (MIT licence)</string>
+</dict>
+</plist>

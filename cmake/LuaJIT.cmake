@@ -8,9 +8,9 @@ set(LUAJIT_PREFIX "${CMAKE_BINARY_DIR}/_deps/luajit")
 set(LUAJIT_SRC "${LUAJIT_PREFIX}/src/luajit_ext")
 
 if(MSVC)
+    # msvcbuild.bat must run from src/ inside a Visual Studio developer environment.
     set(LUAJIT_LIB "${LUAJIT_SRC}/src/lua51.lib")
-    set(LUAJIT_BUILD cmd /c msvcbuild.bat static)
-    set(LUAJIT_BUILD_DIR "${LUAJIT_SRC}/src")
+    set(LUAJIT_BUILD ${CMAKE_COMMAND} -E chdir "${LUAJIT_SRC}/src" cmd /c msvcbuild.bat static)
 else()
     set(LUAJIT_LIB "${LUAJIT_SRC}/src/libluajit.a")
     set(LUAJIT_MAKE_ARGS BUILDMODE=static)
@@ -18,7 +18,6 @@ else()
         list(APPEND LUAJIT_MAKE_ARGS MACOSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET})
     endif()
     set(LUAJIT_BUILD make -C src -j8 ${LUAJIT_MAKE_ARGS} libluajit.a)
-    set(LUAJIT_BUILD_DIR "${LUAJIT_SRC}")
 endif()
 
 ExternalProject_Add(luajit_ext

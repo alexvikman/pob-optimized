@@ -52,6 +52,10 @@ struct ManifestTransform {
 // Everything else is kept as is. Returns the input unchanged if it is not a manifest.
 std::string TransformManifest(std::string_view text, const ManifestTransform& options);
 
+// Copies the files a PoB checkout needs at runtime (manifest.xml and every
+// non-Windows file it lists, in repository layout) to `out`, for packaging.
+std::optional<std::string> StageBundle(const fs::path& repo, const fs::path& out);
+
 // Copies the bundled PoB (repository layout) into the data directory using the
 // install layout (docs/API.md §8.1) when the data directory has no install yet or
 // holds an older version. Returns an error message on failure.

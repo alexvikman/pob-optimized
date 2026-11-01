@@ -45,6 +45,11 @@ App::~App() {
 }
 
 bool App::InitWindow(int width, int height) {
+#ifdef _WIN32
+    // Use the icon embedded by PathOfBuilding.rc (resource id 1) for the window.
+    SDL_SetHint(SDL_HINT_WINDOWS_INTRESOURCE_ICON, "1");
+    SDL_SetHint(SDL_HINT_WINDOWS_INTRESOURCE_ICON_SMALL, "1");
+#endif
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         Log("SDL_Init failed: %s", SDL_GetError());
         return false;

@@ -295,6 +295,7 @@ void SetupPackages(lua_State* L) {
     Preload(L, "lua-utf8", luaopen_utf8);
     Preload(L, "lzip", luaopen_lzip);
     Preload(L, "socket.core", luaopen_socket_core);
+    Preload(L, "sha1", luaopen_sha1_host);
 }
 
 } // namespace pob

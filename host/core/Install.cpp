@@ -3,6 +3,10 @@
 #include "core/Log.h"
 
 #include <algorithm>
+#ifdef __APPLE__
+#include <copyfile.h>
+#endif
+
 #include <cctype>
 #include <cstring>
 #include <fstream>
@@ -69,6 +73,24 @@ std::optional<fs::path> RepoDirForPart(const std::string& part) {
     return std::nullopt;
 }
 
+// On APFS the copy is a clone: instant and no extra disk space until changed.
+bool CopyFile(const fs::path& src, const fs::path& dst, std::error_code& ec) {
+    fs::create_directories(dst.parent_path(), ec);
+    if (ec) return false;
+#ifdef __APPLE__
+    fs::remove(dst, ec);
+    if (copyfile(src.c_str(), dst.c_str(), nullptr, COPYFILE_CLONE | COPYFILE_ALL) == 0) return true;
+    ec = std::error_code(errno, std::generic_category());
+    return false;
+#else
+    return fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec) && !ec;
+#endif
+}
+
+// Calls fn(repoRelativePath) for every file a non-Windows install needs.
+template <typename Fn>
+std::optional<std::string> ForEachBundleFile(const std::vector<ManifestElement>& manifest, Fn&& fn);
+
 std::string ReplaceAll(std::string s, std::string_view from, std::string_view to) {
     for (size_t pos = 0; (pos = s.find(from, pos)) != std::string::npos; pos += to.size()) {
         s.replace(pos, from.size(), to);
@@ -108,7 +130,42 @@ std::string FormatElement(const ManifestElement& el) {
     return out + " />";
 }
 
+template <typename Fn>
+std::optional<std::string> ForEachBundleFile(const std::vector<ManifestElement>& manifest, Fn&& fn) {
+    for (auto& el : manifest) {
+        if (el.tag != "File") continue;
+        // Windows-only binaries carry runtime="win32" (docs/API.md §8.4).
+        if (el.Attr("runtime") || el.Attr("platform")) continue;
+        const std::string* name = el.Attr("name");
+        const std::string* part = el.Attr("part");
+        if (!name || !part) continue;
+        auto repoDir = RepoDirForPart(*part);
+        if (!repoDir) continue;
+        std::string fileName = ReplaceAll(*name, "{space}", " ");
+        if (auto err = fn(*repoDir / FromUtf8(fileName), FromUtf8(fileName))) return err;
+    }
+    return std::nullopt;
+}
+
 } // namespace
+
+std::optional<std::string> StageBundle(const fs::path& repo, const fs::path& out) {
+    auto text = ReadFile(repo / "manifest.xml");
+    std::vector<ManifestElement> manifest;
+    if (!text || !ParseManifest(*text, manifest)) return "manifest.xml is missing or invalid in " + ToLuaPath(repo);
+    size_t count = 0;
+    auto err = ForEachBundleFile(manifest, [&](const fs::path& repoRel, const fs::path&) -> std::optional<std::string> {
+        std::error_code ec;
+        if (!CopyFile(repo / repoRel, out / repoRel, ec)) return "Could not copy '" + ToLuaPath(repoRel) + "': " + ec.message();
+        ++count;
+        return std::nullopt;
+    });
+    if (err) return err;
+    std::error_code ec;
+    if (!CopyFile(repo / "manifest.xml", out / "manifest.xml", ec)) return "Could not copy manifest.xml: " + ec.message();
+    Log("Staged %zu files into %s", count, ToLuaPath(out).c_str());
+    return std::nullopt;
+}
 
 std::string TransformManifest(std::string_view text, const ManifestTransform& options) {
     std::vector<ManifestElement> probe;
@@ -248,26 +305,15 @@ std::optional<std::string> EnsureInstalled(const HostPaths& paths) {
         installedVersion.empty() ? "none" : installedVersion.c_str());
 
     size_t copied = 0;
-    for (auto& el : bundle) {
-        if (el.tag != "File") continue;
-        // Windows-only binaries carry runtime="win32" (docs/API.md §8.4).
-        if (el.Attr("runtime") || el.Attr("platform")) continue;
-        const std::string* name = el.Attr("name");
-        const std::string* part = el.Attr("part");
-        if (!name || !part) continue;
-        auto repoDir = RepoDirForPart(*part);
-        if (!repoDir) continue;
-
-        std::string fileName = ReplaceAll(*name, "{space}", " ");
-        fs::path src = paths.bundle / *repoDir / FromUtf8(fileName);
-        fs::path dst = paths.data / FromUtf8(fileName);
+    auto err = ForEachBundleFile(bundle, [&](const fs::path& repoRel, const fs::path& installRel) -> std::optional<std::string> {
         std::error_code ec;
-        fs::create_directories(dst.parent_path(), ec);
-        if (!fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec) || ec) {
-            return "Could not copy '" + ToLuaPath(src) + "': " + ec.message();
+        if (!CopyFile(paths.bundle / repoRel, paths.data / installRel, ec)) {
+            return "Could not copy '" + ToLuaPath(repoRel) + "': " + ec.message();
         }
         ++copied;
-    }
+        return std::nullopt;
+    });
+    if (err) return err;
 
     // installed.cfg makes PoB keep user data in Documents rather than next to the
     // scripts (Main.lua:86, docs/API.md §8.1).

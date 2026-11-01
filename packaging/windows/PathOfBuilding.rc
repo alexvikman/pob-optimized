@@ -1,0 +1,2 @@
+// Application icon (extracted from PoB's own executable, see packaging/common/extract_icon.py).
+1 ICON "PathOfBuilding.ico"

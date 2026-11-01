@@ -24,6 +24,30 @@ On first start the host copies PoB from the `PathOfBuilding/` submodule into its
 directory (`~/Library/Application Support/PathOfBuilding-Native/` on macOS) and runs
 it from there.
 
+### Packaging
+
+```bash
+# macOS: dist/Path of Building.app, ad-hoc signed
+packaging/macos/make-app.sh build dist
+```
+
+```powershell
+# Windows (from a Visual Studio developer prompt): dist/PathOfBuilding-win64.zip
+packaging/windows/package.ps1 -Build build -Out dist
+```
+
+GitHub Actions (`.github/workflows/build.yml`) builds both on every push, runs the
+unit tests and the `--check-boot` self test on the packaged app, and uploads the
+`.app` zip and the Windows zip as artifacts.
+
+The macOS app is ad-hoc signed, not notarised. When it is downloaded from the
+internet, macOS blocks the first start: right-click the app and choose **Open**, or
+clear the quarantine flag:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Path of Building.app"
+```
+
 ### Development options
 
 ```bash

@@ -14,6 +14,9 @@ void RegisterSubScriptApi(lua_State* L);
 // including subscripts (docs/API.md §5–§6).
 void SetupPackages(lua_State* L);
 
+// require("sha1"): PoB's module with native hash functions (lua/Sha1.cpp).
+int luaopen_sha1_host(lua_State* L);
+
 // Logs a missing host function once instead of failing (docs/API.md §9).
 void InstallSafetyNet(lua_State* L);
 

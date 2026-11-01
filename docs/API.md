@@ -545,12 +545,22 @@ Marker files in the script dir:
 |---|---|---|
 | Script dir = runtime dir (writable, updated in place) | `~/Library/Application Support/PathOfBuilding-Native/` | `%APPDATA%\PathOfBuilding-Native\` (`SDL_GetPrefPath`) |
 | User path (`GetUserPath()`) | `~/Documents` (PoB adds `/Path of Building/`) | Documents (same as the original) |
-| Bundled PoB copy (read-only) | `PoB.app/Contents/Resources/PathOfBuilding/` | next to the exe |
+| Bundled PoB copy (read-only, repository layout, staged by `--stage-bundle`) | `Path of Building.app/Contents/Resources/PathOfBuilding/` | `PathOfBuilding\` next to the exe |
 
 On first start, or when the bundled version is newer than the installed one (an app
 upgrade), the host copies the bundle into the script dir with the installed layout
 from §8.1. It writes a manifest with our platform and branch, and creates
-`installed.cfg`. The host binary itself is never listed in the manifest.
+`installed.cfg`. The host binary itself is never listed in the manifest. On macOS
+the files are APFS clones of the bundle, so the first start takes about a second
+and uses no extra disk space.
+
+**Native SHA-1.** `UpdateCheck.lua` hashes every installed file (~770 MB) on each
+start to verify the install. PoB's `sha1` module is pure Lua, which takes ~35 s of
+a full core. The host loads that module unchanged and replaces only
+`sha1.sha1`/`sha1.binary` with a native implementation (`host/lua/Sha1.cpp`, about
+290 MB/s; identical output for all lengths 0–300 plus the standard test vectors).
+`hmac` and the call form use those two functions, so they get faster too. A
+startup with two update checks dropped from 77 s to 16 s of CPU time.
 
 ### 8.3 Update check (`UpdateCheck.lua`): verified behaviour
 
@@ -727,6 +737,6 @@ acceptable, because the stub does nothing and the log line makes the gap visible
   been done.
 - **M4:** OAuth character import needs LuaSocket to bind a localhost port. Check that
   the macOS firewall prompt does not appear for loopback-only binds.
-- **M7:** LuaJIT on arm64 under the hardened runtime needs the
-  `com.apple.security.cs.allow-jit` entitlement. Ad-hoc signing without the hardened
-  runtime does not.
+- **Signing:** the app is ad-hoc signed without the hardened runtime, so the LuaJIT
+  JIT needs no entitlement. Notarisation, which needs a Developer ID, would require
+  the hardened runtime plus `com.apple.security.cs.allow-jit`.

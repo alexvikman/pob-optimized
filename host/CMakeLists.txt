@@ -15,6 +15,7 @@ add_executable(pob_host
     lua/LuaUtil.cpp
     lua/Modules.cpp
     lua/SafetyNet.cpp
+    lua/Sha1.cpp
     lua/ScriptHost.cpp
     lua/SubScript.cpp
     render/DrawList.cpp
@@ -25,6 +26,13 @@ add_executable(pob_host
     render/Textures.cpp)
 
 set_target_properties(pob_host PROPERTIES OUTPUT_NAME "PathOfBuilding")
+
+if(WIN32)
+    # GUI subsystem (no console window) and the PoB icon.
+    set_target_properties(pob_host PROPERTIES WIN32_EXECUTABLE TRUE)
+    target_sources(pob_host PRIVATE "${PROJECT_SOURCE_DIR}/packaging/windows/PathOfBuilding.rc")
+    target_link_libraries(pob_host PRIVATE ws2_32)
+endif()
 
 target_include_directories(pob_host PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 # libwebp only exports its source root; the public headers are under src/webp/.

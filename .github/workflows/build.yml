@@ -1,0 +1,91 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: macOS arm64
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j "$(sysctl -n hw.ncpu)"
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Package .app
+        run: packaging/macos/make-app.sh build dist
+
+      - name: Self test (boot, subscript, restart, update check)
+        run: |
+          "dist/Path of Building.app/Contents/MacOS/PathOfBuilding" \
+            --data "$RUNNER_TEMP/pob-data" --user "$RUNNER_TEMP/pob-user" --check-boot
+          echo "--- host.log"; tail -n 40 "$RUNNER_TEMP/pob-data/host.log"
+
+      - name: Zip
+        run: cd dist && ditto -c -k --keepParent "Path of Building.app" PathOfBuilding-macos-arm64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PathOfBuilding-macos-arm64
+          path: dist/PathOfBuilding-macos-arm64.zip
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Ninja
+        run: pip install ninja
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Package
+        shell: pwsh
+        run: packaging/windows/package.ps1 -Build build -Out dist
+
+      - name: Self test (boot, subscript, restart, update check)
+        shell: pwsh
+        run: |
+          $exe = "dist/PathOfBuilding-win64/PathOfBuilding.exe"
+          $p = Start-Process -FilePath $exe -Wait -PassThru -NoNewWindow `
+            -ArgumentList "--data", "$env:RUNNER_TEMP\pob-data", "--user", "$env:RUNNER_TEMP\pob-user", "--check-boot"
+          Write-Host "--- host.log"
+          Get-Content "$env:RUNNER_TEMP\pob-data\host.log" -Tail 40
+          if ($p.ExitCode -ne 0) { throw "self test failed with exit code $($p.ExitCode)" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PathOfBuilding-win64
+          path: dist/PathOfBuilding-win64.zip
+          if-no-files-found: error

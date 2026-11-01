@@ -11,6 +11,7 @@
 //   --size WxH     initial window size in points
 //   --frames N     exit after N frames
 //   --print-manifest FILE  print FILE as the host's updater sees it, then exit
+//   --stage-bundle REPO OUT  copy the files PoB needs from a checkout (packaging)
 
 #include "app/App.h"
 #include "core/Install.h"
@@ -50,6 +51,13 @@ int main(int argc, char** argv) {
             std::string text((std::istreambuf_iterator<char>(in)), {});
             std::fputs(pob::TransformManifest(text, {}).c_str(), stdout);
             return in ? 0 : 1;
+        } else if (std::strcmp(argv[i], "--stage-bundle") == 0) {
+            const char* repo = value();
+            const char* out = value();
+            if (!repo || !out) return 64;
+            auto err = pob::StageBundle(pob::FromUtf8(repo), pob::FromUtf8(out));
+            if (err) std::fprintf(stderr, "%s\n", err->c_str());
+            return err ? 1 : 0;
         } else if (std::strcmp(argv[i], "--frames") == 0) {
             if (const char* v = value()) options.maxFrames = std::atoi(v);
         } else if (std::strncmp(argv[i], "-psn_", 5) == 0) {
