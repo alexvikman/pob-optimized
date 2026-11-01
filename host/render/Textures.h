@@ -58,6 +58,9 @@ public:
     Texture* Placeholder() { return placeholder_.get(); }
     // Number of async loads not finished yet (GetAsyncCount()).
     int PendingCount() const { return pending_.load(); }
+    // Bumped whenever an async load finishes, so an otherwise identical frame is
+    // still redrawn once its images are ready.
+    uint64_t Generation() const { return generation_.load(); }
 
 private:
     void WorkerMain();
@@ -70,6 +73,7 @@ private:
     std::condition_variable cv_;
     std::vector<std::shared_ptr<Texture>> queue_;
     std::atomic<int> pending_{0};
+    std::atomic<uint64_t> generation_{0};
     bool stop_ = false;
     std::thread worker_;
 };

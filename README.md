@@ -40,11 +40,20 @@ it from there.
 # ...and save a PNG of the window after boot/eval/input; --size sets the window size
 ./build/host/PathOfBuilding --data build/pobdata --check-boot --screenshot shot.png --size 1440x900
 
-# Per-frame timings in the log
+# Frame rate and timings in the log every 5 s
 POB_HOST_STATS=1 ./build/host/PathOfBuilding --data build/pobdata
+
+# Unit tests
+ctest --test-dir build --output-on-failure
 ```
 
 The log is written to `host.log` in the data directory.
+
+### Power use
+
+The host only redraws when something happens: about 0.8 % CPU with the passive
+tree idle, compared with 52 % when redrawing continuously like the original. The
+rates can be set in `host-settings.ini`; see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ### Updates
 

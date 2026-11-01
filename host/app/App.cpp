@@ -2,6 +2,7 @@
 
 #include "app/BootCheck.h"
 #include "app/Context.h"
+#include "app/FrameScheduler.h"
 #include "app/Input.h"
 #include "core/Install.h"
 #include "core/Log.h"
@@ -58,6 +59,10 @@ bool App::InitWindow(int width, int height) {
     SDL_SetWindowMinimumSize(window, 800, 600);
     Ctx().window = window;
     Log("Renderer: %s", SDL_GetRendererName(renderer_));
+    SDL_SetRenderVSync(renderer_, scheduler_->Config().vsync ? 1 : 0);
+    // macOS runs a modal loop while the user drags the window edge; redraw from
+    // the event watch so the content follows the resize.
+    SDL_AddEventWatch(&App::EventWatch, this);
     draw_ = std::make_unique<Renderer>(renderer_);
 
     wakeEvent_ = SDL_RegisterEvents(1);
@@ -74,7 +79,7 @@ bool App::InitWindow(int width, int height) {
 int App::Run(const AppOptions& options) {
     auto& ctx = Ctx();
     headless_ = options.checkBoot;
-    // POB_HOST_STATS=1 logs per-frame timings.
+    // POB_HOST_STATS=1 logs frame rate and timings every 5 seconds.
     statsEnabled_ = SDL_getenv("POB_HOST_STATS") != nullptr;
     if (auto err = ResolvePaths(options.paths, ctx.paths)) {
         Log("%s", err->c_str());
@@ -92,6 +97,7 @@ int App::Run(const AppOptions& options) {
     ctx.scriptPath = ctx.paths.data;
     ctx.runtimePath = ctx.paths.data;
 
+    scheduler_ = std::make_unique<FrameScheduler>(LoadLoopConfig(ctx.paths.data / "host-settings.ini"));
     curl_global_init(CURL_GLOBAL_DEFAULT);
     if (!InitWindow(options.width, options.height)) return 1;
 
@@ -113,7 +119,8 @@ int App::Run(const AppOptions& options) {
     if (options.inputScript) checkOptions.inputScript = *options.inputScript;
     checkOptions.requestCapture = [this] {
         draw_->SetCaptureNext(true);
-        dirty_ = true;
+        forceRender_ = true;
+        scheduler_->RequestFrame();
     };
     checkOptions.saveCapture = [this](const fs::path& file) {
         std::vector<uint8_t> px;
@@ -124,17 +131,28 @@ int App::Run(const AppOptions& options) {
         return true;
     };
     BootCheck bootCheck(std::move(checkOptions));
+    if (options.evalFile && !options.checkBoot) pendingEval_ = bootCheck.EvalCode();
     while (!quit_) {
-        // Interim pacing: event driven, ~60 fps while PoB has work in flight.
-        // The low-power scheduler replaces this (docs/API.md §11).
+        // Sleep until the scheduler wants a frame or an event arrives
+        // (input, window changes, subscript results, finished image loads).
+        auto now = std::chrono::steady_clock::now();
+        auto next = scheduler_->NextFrame(now, Busy());
         SDL_Event ev;
-        int timeout = NeedsFrames() ? 16 : 250;
-        if (SDL_WaitEventTimeout(&ev, timeout)) {
-            HandleEvent(ev);
-            while (SDL_PollEvent(&ev)) HandleEvent(ev);
+        if (next > now) {
+            Sint32 timeout = -1;
+            if (next != FrameScheduler::kNever) {
+                auto ms = std::chrono::ceil<std::chrono::milliseconds>(next - now).count();
+                timeout = static_cast<Sint32>(std::min<long long>(ms, 60'000));
+            }
+            if (SDL_WaitEventTimeout(&ev, timeout)) HandleEvent(ev);
         }
+        while (SDL_PollEvent(&ev)) HandleEvent(ev);
         if (quit_) break;
+        UpdateWindowState();
+        now = std::chrono::steady_clock::now();
+        if (now < scheduler_->NextFrame(now, Busy())) continue;
         RunFrame();
+        if (statsEnabled_) LogStats(false);
 
         if (script_->HasFatalError()) {
             ReportFatal(script_->FatalError());
@@ -155,15 +173,19 @@ int App::Run(const AppOptions& options) {
                 return 1;
             }
             framesRun_ = 0;
+            forceRender_ = true;
         }
         if (ctx.exitRequested) {
             if (!ctx.exitMessage.empty()) Log("Exit: %s", ctx.exitMessage.c_str());
             break;
         }
         if (options.maxFrames && framesRun_ >= options.maxFrames) break;
+        if (!pendingEval_.empty() && Settled()) {
+            Log("eval: %s", script_->Eval(pendingEval_.c_str()).c_str());
+            pendingEval_.clear();
+        }
         if (options.checkBoot) {
-            bool settled = framesRun_ >= kBootFrames && !NeedsFrames();
-            auto result = bootCheck.Step(*script_, settled);
+            auto result = bootCheck.Step(*script_, Settled());
             if (result != BootCheck::Result::Running) {
                 std::printf("%s", bootCheck.Report().c_str());
                 Log("Boot check %s:\n%s", result == BootCheck::Result::Passed ? "passed" : "FAILED",
@@ -177,32 +199,91 @@ int App::Run(const AppOptions& options) {
     return 0;
 }
 
-bool App::NeedsFrames() const {
-    return dirty_ || !lastFrameComplete_ || framesRun_ < kBootFrames || script_->HasActiveCoroutines() ||
-           (subScripts_ && subScripts_->Any()) || Ctx().textures.PendingCount() > 0;
+bool App::Busy() const {
+    return framesRun_ < kBootFrames || script_->HasActiveCoroutines();
+}
+
+bool App::Settled() const {
+    return framesRun_ >= kBootFrames && !script_->HasActiveCoroutines() && !(subScripts_ && subScripts_->Any()) &&
+           Ctx().textures.PendingCount() == 0 && lastFrameComplete_;
+}
+
+void App::UpdateWindowState() {
+    auto flags = SDL_GetWindowFlags(Ctx().window);
+    bool visible = !(flags & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED | SDL_WINDOW_OCCLUDED));
+    bool focused = (flags & SDL_WINDOW_INPUT_FOCUS) != 0;
+    scheduler_->SetWindowState(visible, focused);
 }
 
 void App::RunFrame() {
     auto& ctx = Ctx();
-    dirty_ = false;
+    if (inFrame_) return;
+    inFrame_ = true;
     auto start = std::chrono::steady_clock::now();
     ctx.draw.BeginFrame(ctx.ScreenWidth(), ctx.ScreenHeight());
     script_->Frame();
     ++framesRun_;
-
     auto luaDone = std::chrono::steady_clock::now();
-    lastFrameComplete_ = draw_->DrawFrame(ctx.draw, ctx.clearColor);
-    if (statsEnabled_) {
-        auto end = std::chrono::steady_clock::now();
-        using ms = std::chrono::duration<double, std::milli>;
-        Log("[stats] frame %d: lua %.2f ms, render %.2f ms, %zu quads", framesRun_, ms(luaDone - start).count(),
-            ms(end - luaDone).count(), ctx.draw.QuadCount());
+
+    // PoB redraws everything every frame; if the result is identical to what is
+    // on screen there is nothing to send to the GPU.
+    uint64_t hash = ctx.draw.Hash();
+    uint64_t texGen = ctx.textures.Generation();
+    bool changed = hash != lastHash_;
+    const auto& cfg = scheduler_->Config();
+    bool skipIdentical = cfg.skipIdenticalFrames && cfg.mode == LoopConfig::Mode::Adaptive;
+    bool render = forceRender_ || !lastFrameComplete_ || texGen != lastTextureGen_ || hash != lastPresentedHash_ ||
+                  !skipIdentical;
+    if (render) {
+        lastFrameComplete_ = draw_->DrawFrame(ctx.draw, ctx.clearColor);
+        lastPresentedHash_ = hash;
+        lastTextureGen_ = texGen;
+        forceRender_ = false;
+        ++stats_.rendered;
     }
+    lastHash_ = hash;
+    auto end = std::chrono::steady_clock::now();
+    scheduler_->FrameDone(start, changed);
+
+    using ms = std::chrono::duration<double, std::milli>;
+    ++stats_.frames;
+    stats_.luaMs += ms(luaDone - start).count();
+    stats_.renderMs += ms(end - luaDone).count();
+    inFrame_ = false;
+}
+
+void App::LogStats(bool force) {
+    auto now = std::chrono::steady_clock::now();
+    double secs = std::chrono::duration<double>(now - stats_.since).count();
+    if (!force && secs < 5.0) return;
+    if (stats_.frames) {
+        auto flags = SDL_GetWindowFlags(Ctx().window);
+        Log("[stats] %.1f s: %d frames (%.1f fps), %d rendered, lua avg %.2f ms, render avg %.2f ms%s", secs,
+            stats_.frames, stats_.frames / secs, stats_.rendered, stats_.luaMs / stats_.frames,
+            stats_.renderMs / stats_.frames, (flags & SDL_WINDOW_INPUT_FOCUS) ? ", focused" : "");
+    } else {
+        Log("[stats] %.1f s: no frames", secs);
+    }
+    stats_ = Stats{};
+}
+
+bool App::EventWatch(void* userdata, SDL_Event* ev) {
+    auto* app = static_cast<App*>(userdata);
+    // data1 == 1 marks an expose sent from inside a live resize (SDL_video.c).
+    if (ev->type == SDL_EVENT_WINDOW_EXPOSED && ev->window.data1 == 1 && !app->inFrame_ && app->script_) {
+        app->forceRender_ = true;
+        app->RunFrame();
+    }
+    return true;
 }
 
 void App::HandleEvent(const SDL_Event& ev) {
     auto& ctx = Ctx();
-    if (ev.type == wakeEvent_) return;
+    auto now = std::chrono::steady_clock::now();
+    if (ev.type == wakeEvent_) {
+        scheduler_->RequestFrame();
+        return;
+    }
     switch (ev.type) {
     case SDL_EVENT_QUIT:
     case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
@@ -211,15 +292,20 @@ void App::HandleEvent(const SDL_Event& ev) {
     case SDL_EVENT_WINDOW_EXPOSED:
     case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
     case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+    case SDL_EVENT_WINDOW_RESTORED:
+    case SDL_EVENT_WINDOW_SHOWN:
+        forceRender_ = true;
+        scheduler_->RequestFrame();
+        break;
     case SDL_EVENT_WINDOW_FOCUS_GAINED:
     case SDL_EVENT_WINDOW_FOCUS_LOST:
     case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-        dirty_ = true;
+        scheduler_->RequestFrame();
         break;
     case SDL_EVENT_MOUSE_MOTION:
         ctx.cursorX = ev.motion.x;
         ctx.cursorY = ev.motion.y;
-        dirty_ = true;
+        scheduler_->OnInput(now);
         break;
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP: {
@@ -229,7 +315,7 @@ void App::HandleEvent(const SDL_Event& ev) {
         ctx.cursorX = ev.button.x;
         ctx.cursorY = ev.button.y;
         ctx.keyDown[key] = down;
-        dirty_ = true;
+        scheduler_->OnInput(now);
         if (!down) {
             script_->KeyUp(key);
             break;
@@ -253,7 +339,7 @@ void App::HandleEvent(const SDL_Event& ev) {
             script_->KeyDown(key, false);
             script_->KeyUp(key);
         }
-        dirty_ = true;
+        scheduler_->OnInput(now);
         break;
     }
     case SDL_EVENT_KEY_DOWN:
@@ -262,7 +348,7 @@ void App::HandleEvent(const SDL_Event& ev) {
         if (!key) break;
         bool down = ev.type == SDL_EVENT_KEY_DOWN;
         ctx.keyDown[key] = down;
-        dirty_ = true;
+        scheduler_->OnInput(now);
         if (down) {
             script_->KeyDown(key, false);
             if (char ch = ExtraCharForKey(key)) script_->Char(std::string(1, ch));
@@ -278,7 +364,7 @@ void App::HandleEvent(const SDL_Event& ev) {
             AppendUtf8(ch, cp);
             script_->Char(ch);
         }
-        dirty_ = true;
+        scheduler_->OnInput(now);
         break;
     }
     default:

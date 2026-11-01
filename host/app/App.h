@@ -10,6 +10,7 @@
 
 namespace pob {
 
+class FrameScheduler;
 class Renderer;
 class ScriptHost;
 class SubScriptManager;
@@ -41,7 +42,13 @@ private:
     bool InitWindow(int width, int height);
     void HandleEvent(const SDL_Event& ev);
     void RunFrame();
-    bool NeedsFrames() const;
+    // Background work that needs frames to progress (boot, PoB coroutines).
+    bool Busy() const;
+    // Nothing left to do: used by the self test to know PoB has settled.
+    bool Settled() const;
+    void UpdateWindowState();
+    void LogStats(bool force);
+    static bool EventWatch(void* userdata, SDL_Event* ev);
     void ReportFatal(const std::string& msg);
 
     std::unique_ptr<ScriptHost> script_;
@@ -51,9 +58,21 @@ private:
     bool lastFrameComplete_ = true;
     Uint32 wakeEvent_ = 0;
     bool quit_ = false;
-    bool dirty_ = true;
+    std::unique_ptr<FrameScheduler> scheduler_;
+    bool inFrame_ = false;
+    bool forceRender_ = true;
+    uint64_t lastHash_ = 0;
+    uint64_t lastPresentedHash_ = 0;
+    uint64_t lastTextureGen_ = 0;
+    // --eval without --check-boot: run once PoB has settled.
+    std::string pendingEval_;
     int framesRun_ = 0;
     bool statsEnabled_ = false;
+    struct Stats {
+        std::chrono::steady_clock::time_point since = std::chrono::steady_clock::now();
+        int frames = 0, rendered = 0;
+        double luaMs = 0, renderMs = 0;
+    } stats_;
     bool headless_ = false; // --check-boot: report errors on stdout, no dialogs
     float wheelAccum_ = 0;
 

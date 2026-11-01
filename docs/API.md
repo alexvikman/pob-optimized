@@ -86,8 +86,9 @@ Each SG frame does the following:
 6. If `Restart()` was called: `OnExit` → destroy the state → reinitialise from step 1.1.
 
 SG throttling is a 100 ms sleep when the window is inactive and no coroutine or
-subscript is active. Otherwise it spins at vsync. **Our host replaces this with the
-event-driven loop from milestone M6.** The parts that matter for correctness:
+subscript is active. Otherwise it spins at vsync. **Our host replaces this with an
+event-driven loop** ([PERFORMANCE.md](PERFORMANCE.md)). The parts that matter for
+correctness:
 
 - **Active coroutines.** After every protected call SG calls `coroutine._list()`. PoB
   defines it in `Common.lua:54` as a weak table of coroutines created through its
@@ -698,15 +699,14 @@ acceptable, because the stub does nothing and the log line makes the gap visible
   frame is marked incomplete so the loop draws again when the worker wakes it.
 - Failed loads draw SG's 8×8 grey placeholder. `"MIPMAP"` is accepted but ignored,
   since PoB does not use it.
-- Measured on an M-series Mac with the tree view at 2560×1600: PoB's `OnFrame`
-  takes 15–40 ms and rendering about 3 ms for ~10,000 quads. Lua is the cost to
-  avoid when idle.
+- Frame pacing and the skip of identical frames are described in
+  [PERFORMANCE.md](PERFORMANCE.md).
 
 ## 11. Deliberate deviations from SimpleGraphic
 
 | Area | SG | Host | Why |
 |---|---|---|---|
-| Frame pacing | spins at vsync; sleeps 100 ms when inactive | event-driven, capped, idle ≈ 0 fps (M6) | power use |
+| Frame pacing | spins at vsync; sleeps 100 ms when inactive | event-driven, capped at 60 fps, idle 4 → 0.5 fps, background 0 ([PERFORMANCE.md](PERFORMANCE.md)) | power use |
 | `OnChar` ≥ U+0080 | `"?"` or a key name | UTF-8 string | correct text input |
 | ⌘ on macOS | n/a | reports as `CTRL` | native shortcuts |
 | `GetFileModifiedTime` | raw platform ticks | Unix seconds (float) | portable, still ordered |

@@ -34,6 +34,7 @@ public:
     // `settled`: boot frames done and no background work pending.
     Result Step(ScriptHost& script, bool settled);
     const std::string& Report() const { return report_; }
+    const std::string& EvalCode() const { return options_.evalCode; }
 
 private:
     enum class Phase { Boot, Settle, Input, Capture, SubScript, Restart, Done };

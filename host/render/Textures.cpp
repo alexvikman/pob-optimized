@@ -158,6 +158,7 @@ void TextureManager::WorkerMain() {
             tex->state = ok ? Texture::State::Ready : Texture::State::Failed;
         }
         --pending_;
+        ++generation_;
         // Safe to drop here: a texture that was never uploaded owns no GPU resources.
         tex.reset();
         if (auto& wake = Ctx().wake) wake();

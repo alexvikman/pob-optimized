@@ -3,6 +3,7 @@ add_executable(pob_host
     app/App.cpp
     app/BootCheck.cpp
     app/Context.cpp
+    app/FrameScheduler.cpp
     app/Input.cpp
     app/InputScript.cpp
     core/Install.cpp
@@ -51,3 +52,13 @@ if(MSVC)
 else()
     target_compile_options(pob_host PRIVATE -Wall -Wextra)
 endif()
+
+# Unit tests (run with ctest).
+add_executable(pob_host_tests
+    tests/FrameSchedulerTest.cpp
+    app/FrameScheduler.cpp
+    core/Log.cpp
+    core/Paths.cpp)
+target_include_directories(pob_host_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(pob_host_tests PRIVATE SDL3::SDL3)
+add_test(NAME FrameScheduler COMMAND pob_host_tests)

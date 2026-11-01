@@ -1,0 +1,106 @@
+# Power use and frame pacing
+
+Path of Building draws its whole UI in immediate mode: every `OnFrame` call
+redraws everything. The original Windows build calls it continuously (vsync),
+which keeps a CPU core busy and the fans spinning even when nothing happens on
+screen. The PoB Lua code is unchanged, so the host controls **when** `OnFrame`
+runs and **whether** the result is sent to the GPU.
+
+## How the loop works
+
+Implemented in `host/app/FrameScheduler.cpp` and `host/app/App.cpp`:
+
+| Situation | Frame rate |
+|---|---|
+| Mouse/keyboard input, and for `activeMs` (500 ms) afterwards | up to `maxFps` (60) |
+| Content changes on consecutive frames without input (an animation) | up to `maxFps` |
+| PoB has background work (yielded coroutines) or is booting | up to `maxFps` |
+| Focused, idle | `idleFps` (4), enough for the blinking caret |
+| Focused, and the last 8 frames were identical | `slowIdleFps` (0.5) |
+| Unfocused | `backgroundFps` (0 = only on events) |
+| Hidden, minimised or fully covered | only on events |
+
+Some events always get the next frame, still capped at `maxFps`:
+
+- a subscript sending a call or finishing (downloads, imports, update check),
+- an asynchronous image load completing,
+- expose, resize and focus changes.
+
+The loop sleeps in `SDL_WaitEventTimeout` until the next frame is due or an event
+arrives. Nothing spins.
+
+**Identical frames skip the GPU.** After `OnFrame` the draw list is hashed (FNV-1a
+over every quad). If the hash equals the frame already on screen, and no image
+finished loading in the meantime, nothing is rendered or presented. The Lua work
+still happens, but at idle rates it is small.
+
+**Live resize.** On macOS, dragging the window edge runs a modal loop. The host
+redraws from an SDL event watch on the live-resize expose events, so the content
+follows the window.
+
+### Settings
+
+`host-settings.ini` in the data directory
+(`~/Library/Application Support/PathOfBuilding-Native/` on macOS) is created with
+the defaults and comments on first start:
+
+```ini
+mode = adaptive          # or "continuous" to behave like the original
+maxFps = 60
+activeMs = 500
+idleFps = 4
+slowIdleFps = 0.5
+slowIdleAfter = 8
+backgroundFps = 0
+skipIdenticalFrames = true
+vsync = true
+```
+
+`POB_HOST_STATS=1` logs frame rate, rendered frames and timings every 5 seconds to
+`host.log`.
+
+## Measurements
+
+The tests ran on macOS 27.2 on Apple Silicon (arm64), with a 1280×800-point window
+on a Retina display (2560×1600 pixels). The window was focused and nobody touched
+it. It showed the passive tree of a new build, which is PoB's most expensive view.
+
+Each sample covered 20 s after a 10 s warm-up, taken with
+`top -l 21 -s 1 -stats pid,cpu,power`. POWER is macOS's energy impact, the same
+figure Activity Monitor shows. Both modes are the same binary; only `mode` in
+`host-settings.ini` changed.
+
+| Mode | CPU (avg) | Energy impact (avg) | `OnFrame` calls | GPU frames |
+|---|---|---|---|---|
+| `continuous` (behaves like the original) | **51.9 %** | **51.9** | ~54/s | every frame |
+| `adaptive` (default) | **0.8 %** | **0.8** | 0.5/s | 0 |
+
+What it costs to use the app:
+
+| Scenario (adaptive) | `OnFrame` calls | GPU frames |
+|---|---|---|
+| Moving the mouse over the tree | up to 60/s while moving (38/s on average over 7 s) | only when the picture changes (16 of 265) |
+| Search field focused, caret blinking | 4/s | 2/s (one per blink) |
+| Idle, nothing focused | 0.5/s | 0 |
+| Window in the background | 0 | 0 |
+
+Per frame in the tree view, PoB's `OnFrame` takes 4–15 ms of Lua, and up to 40 ms
+while a build is loading or the tree search is active. Rendering takes 2–5 ms for
+about 10,000 quads.
+
+### Not measured yet
+
+- **GPU power on its own.** `sudo powermetrics --samplers gpu_power` needs root.
+  Energy impact covers the whole process, and in adaptive idle the GPU renders
+  nothing.
+- **Windows.** Task Manager measurements will follow once the Windows build runs.
+- **Live resize.** It needs a person dragging the window edge.
+
+To reproduce:
+
+```bash
+# behaves like the original
+sed -i '' 's/^mode = .*/mode = continuous/' ~/Library/Application\ Support/PathOfBuilding-Native/host-settings.ini
+# open the tree, leave the window alone, then:
+top -l 21 -s 1 -pid $(pgrep -x PathOfBuilding) -stats pid,cpu,power
+```
