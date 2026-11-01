@@ -114,6 +114,7 @@ git clone --depth 1 --branch v2.66.0 https://github.com/PathOfBuildingCommunity/
 
 ## Licenses
 
-Path of Building and SimpleGraphic are both MIT licensed (© David Gowor and the
-PoB Community). Code adapted from SimpleGraphic keeps its notice; see
+The native host is MIT licensed; see [LICENSE](LICENSE). Path of Building and
+SimpleGraphic are also MIT licensed (© David Gowor and the PoB Community). Code
+adapted from SimpleGraphic keeps its notice; see
 [LICENSE-THIRD-PARTY.md](LICENSE-THIRD-PARTY.md).

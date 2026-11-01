@@ -10,6 +10,7 @@ $Dir = Join-Path $Out "PathOfBuilding-win64"
 if (Test-Path $Dir) { Remove-Item -Recurse -Force $Dir }
 New-Item -ItemType Directory -Force $Dir | Out-Null
 Copy-Item $Exe $Dir
+Copy-Item (Join-Path $Repo "LICENSE") $Dir
 Copy-Item (Join-Path $Repo "LICENSE-THIRD-PARTY.md") $Dir
 
 # PoB itself, exactly the files its manifest lists (no Windows SimpleGraphic runtime).

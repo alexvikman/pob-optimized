@@ -18,7 +18,7 @@ cp "$EXE" "$APP/Contents/MacOS/PathOfBuilding"
 sed -e "s/@HOST_VERSION@/$HOST_VERSION/g" -e "s/@POB_VERSION@/$POB_VERSION/g" \
     "$REPO/packaging/macos/Info.plist.in" > "$APP/Contents/Info.plist"
 cp "$REPO/packaging/macos/PathOfBuilding.icns" "$APP/Contents/Resources/"
-cp "$REPO/LICENSE-THIRD-PARTY.md" "$APP/Contents/Resources/"
+cp "$REPO/LICENSE" "$REPO/LICENSE-THIRD-PARTY.md" "$APP/Contents/Resources/"
 
 # PoB itself, exactly the files its manifest lists (no Windows binaries).
 "$EXE" --stage-bundle "$REPO/PathOfBuilding" "$APP/Contents/Resources/PathOfBuilding"
