@@ -96,10 +96,13 @@ int main() {
             t += 20ms;
         }
         double ms = MsUntil(s, t - 20ms);
+        if (!(ms > 195 && ms < 205)) std::fprintf(stderr, "slow animation: next frame in %.3f ms\n", ms);
         EXPECT(ms > 195 && ms < 205); // 20 ms * 1 / 0.1
         // At that pace it moves 1 px per frame, which keeps the pace.
         auto next = t - 20ms + 200ms;
         s.FrameDone(next, true, 1.0f);
+        if (!(MsUntil(s, next) > 195 && MsUntil(s, next) < 205))
+            std::fprintf(stderr, "slow animation, paced: next frame in %.3f ms\n", MsUntil(s, next));
         EXPECT(MsUntil(s, next) > 195 && MsUntil(s, next) < 205);
         // Never slower than idleFps.
         s.FrameDone(next + 200ms, true, 0.001f);
