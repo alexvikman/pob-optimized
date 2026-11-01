@@ -110,6 +110,7 @@ int App::Run(const AppOptions& options) {
         checkOptions.evalCode.assign(std::istreambuf_iterator<char>(in), {});
     }
     if (options.screenshot) checkOptions.screenshot = *options.screenshot;
+    if (options.inputScript) checkOptions.inputScript = *options.inputScript;
     checkOptions.requestCapture = [this] {
         draw_->SetCaptureNext(true);
         dirty_ = true;

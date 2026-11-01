@@ -4,6 +4,7 @@ add_executable(pob_host
     app/BootCheck.cpp
     app/Context.cpp
     app/Input.cpp
+    app/InputScript.cpp
     core/Install.cpp
     core/Log.cpp
     core/Paths.cpp
@@ -33,6 +34,7 @@ target_link_libraries(pob_host PRIVATE
     luajit
     lua_lcurl
     lua_utf8
+    lua_socket
     minizip
     webpdecoder
     ${POB_ZLIB_TARGET}

@@ -1,10 +1,11 @@
 // Path of Building native host.
 //
-// Usage: PathOfBuilding [--bundle DIR] [--data DIR] [--check-boot [--eval FILE] [--screenshot F]] [--size WxH] [--frames N]
+// Usage: PathOfBuilding [--bundle DIR] [--data DIR] [--check-boot [--eval FILE] [--input FILE] [--screenshot F]] [--size WxH] [--frames N]
 //   --bundle DIR   PoB files in repository layout (default: bundled copy)
 //   --data DIR     writable install directory (default: per-user app data)
 //   --check-boot   boot to the main menu, print a report, exit 0 on success
 //   --eval FILE    with --check-boot: run a Lua file after boot, print its result
+//   --input FILE   with --check-boot: scripted mouse/keyboard input (see app/InputScript.h)
 //   --screenshot F with --check-boot: save a PNG after boot (and --eval)
 //   --size WxH     initial window size in points
 //   --frames N     exit after N frames
@@ -29,6 +30,8 @@ int main(int argc, char** argv) {
             options.checkBoot = true;
         } else if (std::strcmp(argv[i], "--eval") == 0) {
             if (const char* v = value()) options.evalFile = std::filesystem::absolute(pob::FromUtf8(v));
+        } else if (std::strcmp(argv[i], "--input") == 0) {
+            if (const char* v = value()) options.inputScript = std::filesystem::absolute(pob::FromUtf8(v));
         } else if (std::strcmp(argv[i], "--screenshot") == 0) {
             if (const char* v = value()) options.screenshot = std::filesystem::absolute(pob::FromUtf8(v));
         } else if (std::strcmp(argv[i], "--size") == 0) {

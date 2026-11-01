@@ -43,6 +43,13 @@ constexpr const char* kStartSubScript = R"lua(
 
 } // namespace
 
+BootCheck::BootCheck(Options options) : options_(std::move(options)) {
+    std::string error;
+    if (!options_.inputScript.empty() && !input_.Load(options_.inputScript, error)) {
+        report_ += "input: " + error + "\n";
+    }
+}
+
 BootCheck::Result BootCheck::Fail(const std::string& why) {
     report_ += "FAIL: " + why + "\n";
     return Result::Failed;
@@ -68,6 +75,11 @@ BootCheck::Result BootCheck::Step(ScriptHost& script, bool settled) {
         return Result::Running;
     case Phase::Settle:
         if (!settled) return Result::Running;
+        phase_ = Phase::Input;
+        phaseStart_ = now;
+        [[fallthrough]];
+    case Phase::Input:
+        if (!input_.Step(script, report_) || !settled) return Result::Running;
         if (!options_.screenshot.empty()) {
             options_.requestCapture();
             phase_ = Phase::Capture;

@@ -21,6 +21,8 @@ struct AppOptions {
     bool checkBoot = false;
     // With checkBoot: Lua file run in PoB's state after boot; result is printed.
     std::optional<fs::path> evalFile;
+    // With checkBoot: scripted input run after boot/eval (app/InputScript.h).
+    std::optional<fs::path> inputScript;
     // With checkBoot: save a PNG of the frame after boot (and eval).
     std::optional<fs::path> screenshot;
     // Initial window size in points.

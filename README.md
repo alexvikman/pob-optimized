@@ -34,7 +34,10 @@ it from there.
 # exit 0 on success. --eval runs a Lua file inside PoB after boot.
 ./build/host/PathOfBuilding --data build/pobdata --check-boot [--eval probe.lua]
 
-# ...and save a PNG of the window after boot/eval; --size sets the window size
+# Scripted mouse/keyboard input after boot (see host/app/InputScript.h)
+./build/host/PathOfBuilding --data build/pobdata --check-boot --input steps.txt
+
+# ...and save a PNG of the window after boot/eval/input; --size sets the window size
 ./build/host/PathOfBuilding --data build/pobdata --check-boot --screenshot shot.png --size 1440x900
 
 # Per-frame timings in the log
@@ -53,7 +56,7 @@ The log is written to `host.log` in the data directory.
 | stb | `003501f` | stb_image |
 | libcurl | system on macOS, 8.23.0 (Schannel) on Windows | |
 | libwebp | 1.6.0 | decoder only; PoB ships WebP tree art |
-| Lua-cURLv3, luautf8 | SimpleGraphic's pinned revisions | `lcurl`, `lua-utf8` Lua modules |
+| Lua-cURLv3, luautf8, LuaSocket | SimpleGraphic's pinned revisions | `lcurl`, `lua-utf8`, `socket.core` Lua modules |
 
 ## Licenses
 

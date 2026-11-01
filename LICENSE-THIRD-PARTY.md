@@ -38,6 +38,7 @@ Each is used under its own licence, distributed with its sources:
 | LuaJIT | MIT |
 | Lua-cURLv3 (`lcurl`) | MIT |
 | luautf8 (`lua-utf8`) | MIT |
+| LuaSocket (`socket.core`) | MIT |
 | zlib, minizip | zlib |
 | libwebp | BSD-3-Clause |
 | stb_image | MIT / public domain |

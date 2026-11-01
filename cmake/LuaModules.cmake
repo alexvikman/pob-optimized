@@ -12,8 +12,12 @@ FetchContent_Declare(luautf8
     GIT_REPOSITORY https://github.com/starwing/luautf8.git
     GIT_TAG        d65ebfa4a00d6e582970ab729013bb2a629e74c9
     SOURCE_SUBDIR  _no_cmake)
+FetchContent_Declare(luasocket
+    GIT_REPOSITORY https://github.com/lunarmodules/luasocket.git
+    GIT_TAG        66cdeca6636a017fe8ed2b0ee431798f8fb4ade3
+    SOURCE_SUBDIR  _no_cmake)
 # SOURCE_SUBDIR points nowhere so only the sources are fetched; we build them here.
-FetchContent_MakeAvailable(lua_curl luautf8)
+FetchContent_MakeAvailable(lua_curl luautf8 luasocket)
 
 # --- lcurl (Lua-cURLv3) -------------------------------------------------------
 file(GLOB LCURL_SOURCES "${lua_curl_SOURCE_DIR}/src/*.c")
@@ -31,6 +35,29 @@ endif()
 add_library(lua_utf8 STATIC "${luautf8_SOURCE_DIR}/lutf8lib.c")
 target_include_directories(lua_utf8 PRIVATE "${luautf8_SOURCE_DIR}")
 target_link_libraries(lua_utf8 PUBLIC luajit)
+
+# --- socket.core (LuaSocket), used by LaunchServer.lua for the OAuth redirect --
+set(LUASOCKET_SRC "${luasocket_SOURCE_DIR}/src")
+set(LUASOCKET_SOURCES
+    luasocket.c timeout.c buffer.c io.c auxiliar.c compat.c options.c inet.c
+    except.c select.c tcp.c udp.c)
+if(WIN32)
+    list(APPEND LUASOCKET_SOURCES wsocket.c)
+else()
+    list(APPEND LUASOCKET_SOURCES usocket.c)
+endif()
+list(TRANSFORM LUASOCKET_SOURCES PREPEND "${LUASOCKET_SRC}/")
+add_library(lua_socket STATIC ${LUASOCKET_SOURCES})
+target_include_directories(lua_socket PRIVATE "${LUASOCKET_SRC}")
+target_link_libraries(lua_socket PUBLIC luajit)
+if(WIN32)
+    target_link_libraries(lua_socket PUBLIC ws2_32)
+else()
+    target_compile_options(lua_socket PRIVATE -w)
+endif()
+# Same compat-shim clash as lcurl (compat.c defines luaL_setfuncs for Lua 5.1).
+target_compile_definitions(lua_socket PRIVATE luaL_setfuncs=luasocket_compat_setfuncs
+    luaL_testudata=luasocket_compat_testudata)
 
 # --- minizip (from the zlib sources) for our lzip implementation --------------
 set(MINIZIP_DIR "${zlib_SOURCE_DIR}/contrib/minizip")

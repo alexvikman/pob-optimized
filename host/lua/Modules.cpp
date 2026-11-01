@@ -14,6 +14,7 @@ extern "C" {
 int luaopen_lcurl(lua_State* L);
 int luaopen_lcurl_safe(lua_State* L);
 int luaopen_utf8(lua_State* L);
+int luaopen_socket_core(lua_State* L);
 }
 
 namespace pob {
@@ -211,6 +212,7 @@ void SetupPackages(lua_State* L) {
     Preload(L, "lcurl.safe", luaopen_lcurl_safe);
     Preload(L, "lua-utf8", luaopen_utf8);
     Preload(L, "lzip", luaopen_lzip);
+    Preload(L, "socket.core", luaopen_socket_core);
 }
 
 } // namespace pob
