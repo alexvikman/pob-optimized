@@ -17,6 +17,7 @@ add_executable(pob_host
     lua/SubScript.cpp
     render/DrawList.cpp
     render/Font.cpp
+    render/Renderer.cpp
     render/StbImage.cpp
     render/Text.cpp
     render/Textures.cpp)

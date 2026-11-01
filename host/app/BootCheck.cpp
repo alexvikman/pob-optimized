@@ -59,10 +59,27 @@ BootCheck::Result BootCheck::Step(ScriptHost& script, bool settled) {
     if (now - phaseStart_ > kPhaseTimeout) return Fail("timed out");
 
     switch (phase_) {
-    case Phase::Boot: {
+    case Phase::Boot:
         if (!settled) return Result::Running;
         if (!CheckMainMenu(script, "boot")) return Result::Failed;
-        if (!evalCode_.empty()) report_ += "eval: " + script.Eval(evalCode_.c_str()) + "\n";
+        if (!options_.evalCode.empty()) report_ += "eval: " + script.Eval(options_.evalCode.c_str()) + "\n";
+        phase_ = Phase::Settle;
+        phaseStart_ = now;
+        return Result::Running;
+    case Phase::Settle:
+        if (!settled) return Result::Running;
+        if (!options_.screenshot.empty()) {
+            options_.requestCapture();
+            phase_ = Phase::Capture;
+            return Result::Running;
+        }
+        phase_ = Phase::Capture;
+        [[fallthrough]];
+    case Phase::Capture: {
+        if (!options_.screenshot.empty()) {
+            if (!options_.saveCapture(options_.screenshot)) return Result::Running;
+            report_ += "screenshot: " + options_.screenshot.string() + "\n";
+        }
         std::string started = script.Eval(kStartSubScript);
         if (started != "started") return Fail("subscript: " + started);
         phase_ = Phase::SubScript;

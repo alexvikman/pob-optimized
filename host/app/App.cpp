@@ -7,7 +7,11 @@
 #include "core/Log.h"
 #include "lua/ScriptHost.h"
 #include "lua/SubScript.h"
+#include "render/Renderer.h"
 #include "render/Text.h"
+#include "render/Textures.h"
+
+#include <stb_image_write.h>
 
 #include <curl/curl.h>
 
@@ -32,19 +36,20 @@ App::App() = default;
 App::~App() {
     script_.reset();
     subScripts_.reset();
+    draw_.reset();
     if (renderer_) SDL_DestroyRenderer(renderer_);
     if (auto* w = Ctx().window) SDL_DestroyWindow(w);
     Ctx().window = nullptr;
     SDL_Quit();
 }
 
-bool App::InitWindow() {
+bool App::InitWindow(int width, int height) {
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         Log("SDL_Init failed: %s", SDL_GetError());
         return false;
     }
     SDL_Window* window = nullptr;
-    if (!SDL_CreateWindowAndRenderer("Path of Building", 1280, 800,
+    if (!SDL_CreateWindowAndRenderer("Path of Building", width, height,
                                      SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN, &window,
                                      &renderer_)) {
         Log("SDL_CreateWindowAndRenderer failed: %s", SDL_GetError());
@@ -53,6 +58,7 @@ bool App::InitWindow() {
     SDL_SetWindowMinimumSize(window, 800, 600);
     Ctx().window = window;
     Log("Renderer: %s", SDL_GetRendererName(renderer_));
+    draw_ = std::make_unique<Renderer>(renderer_);
 
     wakeEvent_ = SDL_RegisterEvents(1);
     Uint32 wakeType = wakeEvent_;
@@ -68,6 +74,8 @@ bool App::InitWindow() {
 int App::Run(const AppOptions& options) {
     auto& ctx = Ctx();
     headless_ = options.checkBoot;
+    // POB_HOST_STATS=1 logs per-frame timings.
+    statsEnabled_ = SDL_getenv("POB_HOST_STATS") != nullptr;
     if (auto err = ResolvePaths(options.paths, ctx.paths)) {
         Log("%s", err->c_str());
         return 1;
@@ -85,7 +93,7 @@ int App::Run(const AppOptions& options) {
     ctx.runtimePath = ctx.paths.data;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    if (!InitWindow()) return 1;
+    if (!InitWindow(options.width, options.height)) return 1;
 
     subScripts_ = std::make_unique<SubScriptManager>();
     ctx.subScripts = subScripts_.get();
@@ -96,12 +104,25 @@ int App::Run(const AppOptions& options) {
     }
     SDL_ShowWindow(ctx.window);
 
-    std::string evalCode;
+    BootCheck::Options checkOptions;
     if (options.evalFile) {
         std::ifstream in(*options.evalFile, std::ios::binary);
-        evalCode.assign(std::istreambuf_iterator<char>(in), {});
+        checkOptions.evalCode.assign(std::istreambuf_iterator<char>(in), {});
     }
-    BootCheck bootCheck(evalCode);
+    if (options.screenshot) checkOptions.screenshot = *options.screenshot;
+    checkOptions.requestCapture = [this] {
+        draw_->SetCaptureNext(true);
+        dirty_ = true;
+    };
+    checkOptions.saveCapture = [this](const fs::path& file) {
+        std::vector<uint8_t> px;
+        int w = 0, h = 0;
+        if (!draw_->Capture(px, w, h)) return false;
+        std::string name = ToLuaPath(file);
+        if (!stbi_write_png(name.c_str(), w, h, 4, px.data(), w * 4)) Log("Could not write %s", name.c_str());
+        return true;
+    };
+    BootCheck bootCheck(std::move(checkOptions));
     while (!quit_) {
         // Interim pacing: event driven, ~60 fps while PoB has work in flight.
         // The low-power scheduler replaces this (docs/API.md §10).
@@ -151,22 +172,26 @@ int App::Run(const AppOptions& options) {
 }
 
 bool App::NeedsFrames() const {
-    return dirty_ || framesRun_ < kBootFrames || script_->HasActiveCoroutines() ||
-           (subScripts_ && subScripts_->Any());
+    return dirty_ || !lastFrameComplete_ || framesRun_ < kBootFrames || script_->HasActiveCoroutines() ||
+           (subScripts_ && subScripts_->Any()) || Ctx().textures.PendingCount() > 0;
 }
 
 void App::RunFrame() {
     auto& ctx = Ctx();
     dirty_ = false;
+    auto start = std::chrono::steady_clock::now();
     ctx.draw.BeginFrame(ctx.ScreenWidth(), ctx.ScreenHeight());
     script_->Frame();
     ++framesRun_;
 
-    // Drawing PoB's command list arrives with the renderer; for now only clear.
-    const Color& c = ctx.clearColor;
-    SDL_SetRenderDrawColorFloat(renderer_, c[0], c[1], c[2], c[3]);
-    SDL_RenderClear(renderer_);
-    SDL_RenderPresent(renderer_);
+    auto luaDone = std::chrono::steady_clock::now();
+    lastFrameComplete_ = draw_->DrawFrame(ctx.draw, ctx.clearColor);
+    if (statsEnabled_) {
+        auto end = std::chrono::steady_clock::now();
+        using ms = std::chrono::duration<double, std::milli>;
+        Log("[stats] frame %d: lua %.2f ms, render %.2f ms, %zu quads", framesRun_, ms(luaDone - start).count(),
+            ms(end - luaDone).count(), ctx.draw.QuadCount());
+    }
 }
 
 void App::HandleEvent(const SDL_Event& ev) {

@@ -33,6 +33,12 @@ it from there.
 # Self test: boot to the main menu, run a subscript round trip and a Restart(),
 # exit 0 on success. --eval runs a Lua file inside PoB after boot.
 ./build/host/PathOfBuilding --data build/pobdata --check-boot [--eval probe.lua]
+
+# ...and save a PNG of the window after boot/eval; --size sets the window size
+./build/host/PathOfBuilding --data build/pobdata --check-boot --screenshot shot.png --size 1440x900
+
+# Per-frame timings in the log
+POB_HOST_STATS=1 ./build/host/PathOfBuilding --data build/pobdata
 ```
 
 The log is written to `host.log` in the data directory.

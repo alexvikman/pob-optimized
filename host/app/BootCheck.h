@@ -1,6 +1,8 @@
 #pragma once
 
 #include <chrono>
+#include <filesystem>
+#include <functional>
 #include <string>
 
 namespace pob {
@@ -9,11 +11,20 @@ class ScriptHost;
 
 // --check-boot self test, driven from the main loop once per frame:
 //   1. PoB boots and settles without an error prompt,
+//      (optionally: run --eval code, let it settle, save --screenshot)
 //   2. a subscript round-trips a func call, a sub call and its return values,
 //   3. Restart() re-runs Launch.lua and PoB settles again.
 class BootCheck {
 public:
-    explicit BootCheck(std::string evalCode = {}) : evalCode_(std::move(evalCode)) {}
+    struct Options {
+        std::string evalCode;
+        std::filesystem::path screenshot;
+        // Asks the app to capture the next frame; returns true once a capture
+        // has been written to the given path.
+        std::function<void()> requestCapture;
+        std::function<bool(const std::filesystem::path&)> saveCapture;
+    };
+    explicit BootCheck(Options options) : options_(std::move(options)) {}
 
     enum class Result { Running, Passed, Failed };
 
@@ -22,13 +33,13 @@ public:
     const std::string& Report() const { return report_; }
 
 private:
-    enum class Phase { Boot, SubScript, Restart, Done };
+    enum class Phase { Boot, Settle, Capture, SubScript, Restart, Done };
 
     bool CheckMainMenu(ScriptHost& script, const char* label);
     Result Fail(const std::string& why);
 
     Phase phase_ = Phase::Boot;
-    std::string evalCode_;
+    Options options_;
     std::string report_;
     std::chrono::steady_clock::time_point phaseStart_ = std::chrono::steady_clock::now();
 };

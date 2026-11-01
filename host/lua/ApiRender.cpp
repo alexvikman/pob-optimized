@@ -92,7 +92,7 @@ int l_SetClearColor(lua_State* L) {
 
 int l_GetAsyncCount(lua_State* L) {
     RequireRenderer(L);
-    lua_pushinteger(L, 0);
+    lua_pushinteger(L, Ctx().textures.PendingCount());
     return 1;
 }
 
@@ -382,13 +382,14 @@ int l_ImgIsValid(lua_State* L) {
 
 int l_ImgIsLoading(lua_State* L) {
     auto* h = GetImage(L, "IsLoading", true);
-    lua_pushboolean(L, h->tex->state == Texture::State::Pending && (h->tex->flags & kTexAsync));
+    lua_pushboolean(L, h->tex->state == Texture::State::Pending);
     return 1;
 }
 
 int l_ImgSetLoadingPriority(lua_State* L) {
-    GetImage(L, "SetLoadingPriority", true);
+    auto* h = GetImage(L, "SetLoadingPriority", true);
     LuaCheck(L, lua_gettop(L) >= 2, "Usage: imgHandle:SetLoadingPriority(pri)");
+    h->tex->priority = static_cast<int>(ArgNumber(L, "imgHandle:SetLoadingPriority", 2));
     return 0;
 }
 

@@ -11,6 +11,7 @@
 #include <zlib.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -255,6 +256,15 @@ int l_SpawnProcess(lua_State* L) {
 int l_OpenURL(lua_State* L) {
     LuaCheck(L, lua_gettop(L) >= 1, "Usage: OpenURL(url)");
     std::string url(ArgString(L, "OpenURL", 1));
+    // PoB only opens web pages, but some URLs come from user-editable text
+    // (EditControl.lua:487); never hand file: or app schemes to the OS.
+    std::string scheme = url.substr(0, url.find(':'));
+    std::transform(scheme.begin(), scheme.end(), scheme.begin(), [](unsigned char c) { return std::tolower(c); });
+    if (url.find(':') == std::string::npos || (scheme != "http" && scheme != "https")) {
+        Log("OpenURL rejected (only http/https allowed): %s", url.c_str());
+        lua_pushstring(L, "Only http and https links can be opened");
+        return 1;
+    }
     if (!SDL_OpenURL(url.c_str())) {
         lua_pushstring(L, SDL_GetError());
         return 1;

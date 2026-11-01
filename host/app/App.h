@@ -10,6 +10,7 @@
 
 namespace pob {
 
+class Renderer;
 class ScriptHost;
 class SubScriptManager;
 
@@ -20,6 +21,10 @@ struct AppOptions {
     bool checkBoot = false;
     // With checkBoot: Lua file run in PoB's state after boot; result is printed.
     std::optional<fs::path> evalFile;
+    // With checkBoot: save a PNG of the frame after boot (and eval).
+    std::optional<fs::path> screenshot;
+    // Initial window size in points.
+    int width = 1280, height = 800;
     // Exit after this many frames (0 = run until closed).
     int maxFrames = 0;
 };
@@ -31,7 +36,7 @@ public:
     int Run(const AppOptions& options);
 
 private:
-    bool InitWindow();
+    bool InitWindow(int width, int height);
     void HandleEvent(const SDL_Event& ev);
     void RunFrame();
     bool NeedsFrames() const;
@@ -40,10 +45,13 @@ private:
     std::unique_ptr<ScriptHost> script_;
     std::unique_ptr<SubScriptManager> subScripts_;
     SDL_Renderer* renderer_ = nullptr;
+    std::unique_ptr<Renderer> draw_;
+    bool lastFrameComplete_ = true;
     Uint32 wakeEvent_ = 0;
     bool quit_ = false;
     bool dirty_ = true;
     int framesRun_ = 0;
+    bool statsEnabled_ = false;
     bool headless_ = false; // --check-boot: report errors on stdout, no dialogs
     float wheelAccum_ = 0;
 

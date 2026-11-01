@@ -660,7 +660,26 @@ acceptable, because the stub does nothing and the log line makes the gap visible
 
 ---
 
-## 10. Deliberate deviations from SimpleGraphic
+## 10. Rendering in the host
+
+- The draw list is recorded per frame in physical pixels, per `(layer, subLayer)`,
+  with each quad carrying its texture, colour and viewport index. It is drawn with
+  `SDL_Renderer` (Metal on macOS, Direct3D on Windows): consecutive quads that share
+  texture, viewport and address mode become one `SDL_RenderGeometry` call.
+- The viewport is `SDL_SetRenderViewport`, which translates and clips like SG.
+  Textures use `WRAP` addressing unless loaded with `"CLAMP"`, linear filtering
+  unless `"NEAREST"`, and straight alpha blending.
+- Images decode to RGBA8 (stb_image for PNG/JPEG/TGA, libwebp for WebP). The upload
+  happens lazily on first draw. `"ASYNC"` loads decode on a worker thread, highest
+  `SetLoadingPriority` first. Until a load finishes its quads are skipped, and the
+  frame is marked incomplete so the loop draws again when the worker wakes it.
+- Failed loads draw SG's 8×8 grey placeholder. `"MIPMAP"` is accepted but ignored,
+  since PoB does not use it.
+- Measured on an M-series Mac with the tree view at 2560×1600: PoB's `OnFrame`
+  takes 15–40 ms and rendering about 3 ms for ~10,000 quads. Lua is the cost to
+  avoid when idle.
+
+## 11. Deliberate deviations from SimpleGraphic
 
 | Area | SG | Host | Why |
 |---|---|---|---|
@@ -671,17 +690,18 @@ acceptable, because the stub does nothing and the log line makes the gap visible
 | `GetUserPath` on macOS | `$XDG_DATA_HOME` or `~/.local/share` | `~/Documents` | match the Windows convention |
 | Subscript `require` | relies on cwd | `package.preload` + absolute `package.path` | threads share cwd |
 | Updater manifest | as downloaded | normalised (§8.4) | upstream attribute mismatch |
+| `OpenURL` | any target (`ShellExecute`) | `http`/`https` only | some URLs come from editable text |
+| Leading `#` line in Lua files | skipped by the old LuaJIT | blanked by the host loader (§1.1) | newer LuaJIT parses it |
 | In-window console, ImGui debug, profiling | yes | log file only | not needed |
 
 ---
 
-## 11. Open questions (to settle in later milestones)
+## 12. Open questions (to settle in later milestones)
 
-- **M3:** pending-texture drawing. SG binds the not-yet-uploaded GL texture, which
-  typically samples as transparent black, and inhibits elision. Confirm visually that
-  "draw nothing until ready" matches.
-- **M3:** compare text pixel by pixel against the Windows build, especially
-  `CENTER`/`RIGHT` alignment, which uses the screen width.
+- **Text against Windows:** compare text pixel by pixel with the Windows build,
+  especially `CENTER`/`RIGHT` alignment, which uses the screen width. On macOS the
+  build list, tree, Items and Calcs views look right, but no side-by-side diff has
+  been done.
 - **M4:** OAuth character import needs LuaSocket to bind a localhost port. Check that
   the macOS firewall prompt does not appear for loopback-only binds.
 - **M5:** confirm that the manifest normalisation keeps the SHA-1s intact, by checking
