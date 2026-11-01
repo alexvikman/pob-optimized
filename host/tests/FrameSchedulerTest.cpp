@@ -93,6 +93,8 @@ int main() {
         auto t = t0;
         for (int i = 0; i < 3; ++i) {
             s.FrameDone(t, true, 0.1f);
+            std::fprintf(stderr, "debug: frame %d at +%.3f ms, next in %.3f ms\n", i,
+                         std::chrono::duration<double, std::milli>(t - t0).count(), MsUntil(s, t));
             t += 20ms;
         }
         double ms = MsUntil(s, t - 20ms);
