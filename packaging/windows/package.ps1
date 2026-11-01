@@ -13,8 +13,10 @@ Copy-Item $Exe $Dir
 Copy-Item (Join-Path $Repo "LICENSE-THIRD-PARTY.md") $Dir
 
 # PoB itself, exactly the files its manifest lists (no Windows SimpleGraphic runtime).
-& $Exe --stage-bundle (Join-Path $Repo "PathOfBuilding") (Join-Path $Dir "PathOfBuilding")
-if ($LASTEXITCODE -ne 0) { throw "staging PoB failed" }
+# The exe is a GUI-subsystem program, so PowerShell would not wait for it with "&".
+$Stage = Start-Process -FilePath $Exe -Wait -PassThru -NoNewWindow `
+    -ArgumentList "--stage-bundle", "`"$(Join-Path $Repo 'PathOfBuilding')`"", "`"$(Join-Path $Dir 'PathOfBuilding')`""
+if ($Stage.ExitCode -ne 0) { throw "staging PoB failed with exit code $($Stage.ExitCode)" }
 
 $Zip = Join-Path $Out "PathOfBuilding-win64.zip"
 if (Test-Path $Zip) { Remove-Item -Force $Zip }
