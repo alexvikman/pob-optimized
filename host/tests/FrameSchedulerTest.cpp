@@ -4,6 +4,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 
 using pob::FrameScheduler;
 using pob::LoopConfig;
@@ -29,10 +30,12 @@ double MsUntil(const FrameScheduler& s, Clock::time_point now, bool busy = false
     return std::chrono::duration<double, std::milli>(next - now).count();
 }
 
-// Runs `n` frames, each `step` after the previous, with the given change flag.
-Clock::time_point RunFrames(FrameScheduler& s, Clock::time_point t, int n, Clock::duration step, bool changed) {
+// Runs `n` frames, each `step` after the previous, with the given change flag
+// and motion (pixels moved since the previous frame).
+Clock::time_point RunFrames(FrameScheduler& s, Clock::time_point t, int n, Clock::duration step, bool changed,
+                            float motion = std::numeric_limits<float>::infinity()) {
     for (int i = 0; i < n; ++i) {
-        s.FrameDone(t, changed);
+        s.FrameDone(t, changed, motion);
         t += step;
     }
     return t;
@@ -90,21 +93,12 @@ int main() {
     {   // A slow animation (the rotating jewel rings: ~0.1 px per frame at full
         // rate) gets a frame each time it has moved about animationStepPx (1 px).
         FrameScheduler s(cfg);
-        auto t = t0;
-        for (int i = 0; i < 3; ++i) {
-            s.FrameDone(t, true, 0.1f);
-            std::fprintf(stderr, "debug: frame %d at +%.3f ms, next in %.3f ms\n", i,
-                         std::chrono::duration<double, std::milli>(t - t0).count(), MsUntil(s, t));
-            t += 20ms;
-        }
+        auto t = RunFrames(s, t0, 3, 20ms, true, 0.1f);
         double ms = MsUntil(s, t - 20ms);
-        if (!(ms > 195 && ms < 205)) std::fprintf(stderr, "slow animation: next frame in %.3f ms\n", ms);
         EXPECT(ms > 195 && ms < 205); // 20 ms * 1 / 0.1
         // At that pace it moves 1 px per frame, which keeps the pace.
         auto next = t - 20ms + 200ms;
         s.FrameDone(next, true, 1.0f);
-        if (!(MsUntil(s, next) > 195 && MsUntil(s, next) < 205))
-            std::fprintf(stderr, "slow animation, paced: next frame in %.3f ms\n", MsUntil(s, next));
         EXPECT(MsUntil(s, next) > 195 && MsUntil(s, next) < 205);
         // Never slower than idleFps.
         s.FrameDone(next + 200ms, true, 0.001f);
