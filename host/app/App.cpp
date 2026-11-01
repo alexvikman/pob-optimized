@@ -282,7 +282,7 @@ void App::RunFrame() {
     }
     lastHash_ = hash;
     auto end = std::chrono::steady_clock::now();
-    scheduler_->FrameDone(start, changed);
+    scheduler_->FrameDone(start, changed, changed ? ctx.draw.MotionSincePrevious() : 0.0f);
 
     using ms = std::chrono::duration<double, std::milli>;
     ++stats_.frames;

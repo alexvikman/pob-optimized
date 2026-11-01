@@ -1,5 +1,7 @@
 #include "render/DrawList.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 
 namespace pob {
@@ -25,6 +27,10 @@ struct Hasher {
 } // namespace
 
 void DrawList::BeginFrame(int screenW, int screenH) {
+    prevLayers_.swap(layers_);
+    prevViewports_.swap(viewports_);
+    prevScreenW_ = screenW_;
+    prevScreenH_ = screenH_;
     layers_.clear();
     viewports_.clear();
     screenW_ = screenW;
@@ -99,6 +105,32 @@ uint64_t DrawList::Hash() const {
         }
     }
     return h.h;
+}
+
+float DrawList::MotionSincePrevious() const {
+    if (screenW_ != prevScreenW_ || screenH_ != prevScreenH_ || layers_.size() != prevLayers_.size() ||
+        viewports_.size() != prevViewports_.size()) {
+        return kAnyChange;
+    }
+    for (size_t i = 0; i < viewports_.size(); ++i) {
+        const Viewport &a = viewports_[i], &b = prevViewports_[i];
+        if (a.x != b.x || a.y != b.y || a.w != b.w || a.h != b.h) return kAnyChange;
+    }
+    float motion = 0;
+    for (auto cur = layers_.begin(), prev = prevLayers_.begin(); cur != layers_.end(); ++cur, ++prev) {
+        if (cur->first != prev->first || cur->second.size() != prev->second.size()) return kAnyChange;
+        for (size_t i = 0; i < cur->second.size(); ++i) {
+            const Quad &a = cur->second[i], &b = prev->second[i];
+            if (a.tex != b.tex || a.viewport != b.viewport || a.stackLayer != b.stackLayer || a.color != b.color ||
+                std::memcmp(a.u, b.u, sizeof(a.u)) != 0 || std::memcmp(a.v, b.v, sizeof(a.v)) != 0) {
+                return kAnyChange;
+            }
+            for (int k = 0; k < 4; ++k) {
+                motion = std::max({motion, std::fabs(a.x[k] - b.x[k]), std::fabs(a.y[k] - b.y[k])});
+            }
+        }
+    }
+    return motion;
 }
 
 } // namespace pob

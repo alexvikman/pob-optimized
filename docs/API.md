@@ -716,7 +716,7 @@ acceptable, because the stub does nothing and the log line makes the gap visible
 
 | Area | SG | Host | Why |
 |---|---|---|---|
-| Frame pacing | spins at vsync; sleeps 100 ms when inactive | event-driven, capped at 60 fps, idle 4 → 0.5 fps, background 0 ([PERFORMANCE.md](PERFORMANCE.md)) | power use |
+| Frame pacing | spins at vsync; sleeps 100 ms when inactive | event-driven, capped at 60 fps, slow animations paced by their speed, idle 4 → 0.5 fps, background 0 ([PERFORMANCE.md](PERFORMANCE.md)) | power use |
 | `OnChar` ≥ U+0080 | `"?"` or a key name | UTF-8 string | correct text input |
 | ⌘ on macOS | n/a | reports as `CTRL` | native shortcuts |
 | `GetFileModifiedTime` | raw platform ticks | Unix seconds (float) | portable, still ordered |

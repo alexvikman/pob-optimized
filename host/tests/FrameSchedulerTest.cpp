@@ -79,10 +79,40 @@ int main() {
         double ms = MsUntil(s, t - 250ms);
         EXPECT(ms > 240 && ms < 260);
     }
-    {   // Consecutive changes without input are an animation: full rate.
+    {   // Consecutive changes without input are an animation: full rate when it
+        // moves a pixel or more per frame, or changes anything but positions.
         FrameScheduler s(cfg);
         auto t = RunFrames(s, t0, 3, 17ms, true);
         EXPECT(MsUntil(s, t - 17ms) < 17);
+        s.FrameDone(t, true, 2.0f);
+        EXPECT(MsUntil(s, t) < 17);
+    }
+    {   // A slow animation (the rotating jewel rings: ~0.1 px per frame at full
+        // rate) gets a frame each time it has moved about animationStepPx (1 px).
+        FrameScheduler s(cfg);
+        auto t = t0;
+        for (int i = 0; i < 3; ++i) {
+            s.FrameDone(t, true, 0.1f);
+            t += 20ms;
+        }
+        double ms = MsUntil(s, t - 20ms);
+        EXPECT(ms > 195 && ms < 205); // 20 ms * 1 / 0.1
+        // At that pace it moves 1 px per frame, which keeps the pace.
+        auto next = t - 20ms + 200ms;
+        s.FrameDone(next, true, 1.0f);
+        EXPECT(MsUntil(s, next) > 195 && MsUntil(s, next) < 205);
+        // Never slower than idleFps.
+        s.FrameDone(next + 200ms, true, 0.001f);
+        EXPECT(MsUntil(s, next + 200ms) > 240 && MsUntil(s, next + 200ms) < 260);
+        // Input still gets the full rate.
+        s.OnInput(next + 200ms);
+        EXPECT(MsUntil(s, next + 210ms) < 17);
+    }
+    {   // An animation unfocused waits for events, like anything else.
+        FrameScheduler s(cfg);
+        s.SetWindowState(true, false);
+        auto t = RunFrames(s, t0, 3, 17ms, true);
+        EXPECT(MsUntil(s, t - 17ms) < 0);
     }
     {   // Busy (PoB coroutines) runs at the cap even when idle.
         FrameScheduler s(cfg);

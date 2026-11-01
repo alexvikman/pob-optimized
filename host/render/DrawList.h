@@ -3,6 +3,7 @@
 #include "render/Text.h"
 
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <utility>
 #include <vector>
@@ -58,9 +59,20 @@ public:
     // Digest of everything that affects the rendered image.
     uint64_t Hash() const;
 
+    // How far this frame moved compared with the previous one, in pixels: the
+    // largest vertex displacement when only quad positions changed, or infinity
+    // when anything else differs (quads added or removed, textures, colours,
+    // viewports). Lets the scheduler tell a slow animation from a fast one.
+    float MotionSincePrevious() const;
+    static constexpr float kAnyChange = std::numeric_limits<float>::infinity();
+
 private:
     std::map<LayerKey, std::vector<Quad>> layers_;
     std::vector<Viewport> viewports_;
+    // The previous frame, kept for MotionSincePrevious.
+    std::map<LayerKey, std::vector<Quad>> prevLayers_;
+    std::vector<Viewport> prevViewports_;
+    int prevScreenW_ = 0, prevScreenH_ = 0;
     std::vector<Quad>* current_ = nullptr;
     int layer_ = 0, subLayer_ = 0;
     uint32_t viewport_ = 0;

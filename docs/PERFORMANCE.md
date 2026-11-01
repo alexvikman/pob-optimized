@@ -13,11 +13,11 @@ Implemented in `host/app/FrameScheduler.cpp` and `host/app/App.cpp`:
 | Situation | Frame rate |
 |---|---|
 | Mouse/keyboard input, and for `activeMs` (500 ms) afterwards | up to `maxFps` (60) |
-| Content changes on consecutive frames without input (an animation) | up to `maxFps` |
 | PoB has background work (yielded coroutines) or is booting | up to `maxFps` |
+| Focused, content changes on consecutive frames without input (an animation) | paced by how fast it moves: one frame per `animationStepPx` (1 px), between `maxFps` and `idleFps` |
 | Focused, idle | `idleFps` (4), enough for the blinking caret |
 | Focused, and the last 8 frames were identical | `slowIdleFps` (0.5) |
-| Unfocused | `backgroundFps` (0 = only on events) |
+| Unfocused | `backgroundFps` (0 = only on events), animations included |
 | Hidden, minimised or fully covered | only on events |
 
 Some events always get the next frame, still capped at `maxFps`:
@@ -34,6 +34,17 @@ over every quad). If the hash equals the frame already on screen, and no image
 finished loading in the meantime, nothing is rendered or presented. The Lua work
 still happens, but at idle rates it is small.
 
+**Slow animations are paced by their speed.** The passive tree rotates the
+radius rings of allocated timeless jewels (and other jewels with a radius) while
+"Show Animations" is on. They turn about 3 px per second, so at full rate every
+frame differs from the last by a twentieth of a pixel, and the whole tree is
+recomputed and rendered 60 times a second for it. When a frame differs from the
+previous one only in quad positions, the draw list reports the largest vertex
+movement (`DrawList::MotionSincePrevious`). The scheduler spaces the next frames
+so that each one moves about `animationStepPx`. Anything else that changes
+(quads added or removed, colours, textures) counts as fast and gets `maxFps`, as
+do toasts and scrolling, which move several pixels per frame.
+
 **Live resize.** On macOS, dragging the window edge runs a modal loop. The host
 redraws from an SDL event watch on the live-resize expose events, so the content
 follows the window.
@@ -48,6 +59,7 @@ the defaults and comments on first start:
 mode = adaptive          # or "continuous" to behave like the original
 maxFps = 60
 activeMs = 500
+animationStepPx = 1
 idleFps = 4
 slowIdleFps = 0.5
 slowIdleAfter = 8
@@ -110,6 +122,19 @@ The test also turned up a packaging bug: the exe needed the Visual C++
 Redistributable (`VCRUNTIME140_1.dll`), which CI runners have but a clean Windows
 does not. Everything now links the runtime statically, and CI fails if the exe
 depends on `vcruntime`/`msvcp` DLLs.
+
+### A build with a timeless jewel
+
+Same Mac and window as above. The window was focused and left alone, with the tree
+of an imported build that has a Lethal Pride jewel allocated (the rings rotate).
+
+| Version | `OnFrame` calls | GPU frames | Lua + render per second |
+|---|---|---|---|
+| Before speed-based pacing | 55.7/s | every frame | ~590 ms (59 % of a core) |
+| `animationStepPx = 1` (default) | 5.4/s | every frame | ~57 ms (6 % of a core) |
+
+On a display without Retina scaling the same rotation is half as many pixels, so
+the rate drops to around 3–4/s; it never goes below `idleFps`.
 
 ### Not measured yet
 

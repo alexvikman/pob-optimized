@@ -25,6 +25,11 @@ maxFps = 60
 # Keep the full rate this long after the last mouse/keyboard input (ms).
 activeMs = 500
 
+# Slow animations, like the rotating jewel rings on the passive tree, move a
+# fraction of a pixel per frame at full rate. They are redrawn only once they
+# have moved this many pixels. 0 draws every animation at maxFps.
+animationStepPx = 1
+
 # Focused but idle: enough for the blinking text caret.
 idleFps = 4
 
@@ -76,6 +81,7 @@ LoopConfig LoadLoopConfig(const std::filesystem::path& file) {
         if (key == "mode") cfg.mode = val == "continuous" ? LoopConfig::Mode::Continuous : LoopConfig::Mode::Adaptive;
         else if (key == "maxFps") num(cfg.maxFps);
         else if (key == "activeMs") num(cfg.activeMs);
+        else if (key == "animationStepPx") num(cfg.animationStepPx);
         else if (key == "idleFps") num(cfg.idleFps);
         else if (key == "slowIdleFps") num(cfg.slowIdleFps);
         else if (key == "slowIdleAfter") num(cfg.slowIdleAfter);
@@ -104,12 +110,26 @@ void FrameScheduler::SetWindowState(bool visible, bool focused) {
     focused_ = focused;
 }
 
-void FrameScheduler::FrameDone(Clock::time_point frameStart, bool changed) {
+void FrameScheduler::FrameDone(Clock::time_point frameStart, bool changed, float motion) {
+    auto sincePrevious = frameStart - lastFrame_;
+    bool hadPrevious = lastFrame_ != Clock::time_point{};
     lastFrame_ = frameStart;
     framePending_ = false;
     if (changed) {
         ++changedStreak_;
         unchangedStreak_ = 0;
+        // Space an animation's frames so it moves about animationStepPx per
+        // frame, between maxFps and idleFps. Fast movement and other changes
+        // (infinite motion) get maxFps.
+        auto fastest = Interval(config_.maxFps);
+        animationInterval_ = fastest;
+        if (hadPrevious && config_.animationStepPx > 0) {
+            double factor = motion > 0 ? config_.animationStepPx / motion : 1e6;
+            auto paced = std::chrono::duration_cast<Clock::duration>(
+                std::chrono::duration<double>(sincePrevious) * factor);
+            auto slowest = std::max(fastest, Interval(std::max(config_.idleFps, 1.0)));
+            animationInterval_ = std::clamp(paced, fastest, slowest);
+        }
     } else {
         changedStreak_ = 0;
         ++unchangedStreak_;
@@ -120,10 +140,11 @@ FrameScheduler::Clock::time_point FrameScheduler::NextFrame(Clock::time_point no
     const auto earliest = lastFrame_ + Interval(config_.maxFps);
     if (config_.mode == LoopConfig::Mode::Continuous) return earliest;
     if (framePending_ || busy || now < activeUntil_) return earliest;
-    // Content changed on consecutive frames without input: an animation.
-    if (changedStreak_ >= 2) return earliest;
     if (!visible_) return kNever;
     if (!focused_) return config_.backgroundFps > 0 ? lastFrame_ + Interval(config_.backgroundFps) : kNever;
+    // Content changed on consecutive frames without input: an animation, paced
+    // by how fast it moves.
+    if (changedStreak_ >= 2) return std::max(earliest, lastFrame_ + animationInterval_);
     double fps = unchangedStreak_ >= config_.slowIdleAfter ? config_.slowIdleFps : config_.idleFps;
     return fps > 0 ? std::max(earliest, lastFrame_ + Interval(fps)) : kNever;
 }
