@@ -244,12 +244,50 @@ int l_GetTime(lua_State* L) {
     return 1;
 }
 
+int l_UpdaterSpawnProcess(lua_State* L) {
+    // UpdateApply.lua ends with 'start "<exe>"'; the host restarts itself instead.
+    Log("Updater: ignoring start of '%s'", luaL_optstring(L, 1, ""));
+    return 0;
+}
+
+// Runs UpdateApply.lua with `opFile` in a bare state, like Windows' Update.exe.
+void RunUpdateApply(const std::string& opFile) {
+    auto& ctx = Ctx();
+    lua_State* U = luaL_newstate();
+    luaL_openlibs(U);
+    SetupPackages(U);
+    lua_pushcfunction(U, l_UpdaterSpawnProcess);
+    lua_setglobal(U, "SpawnProcess");
+    lua_pushcfunction(U, l_print);
+    lua_setglobal(U, "print");
+    std::error_code ec;
+    fs::current_path(ctx.scriptPath, ec);
+    if (LoadLuaFile(U, ctx.scriptPath / "UpdateApply.lua", "UpdateApply.lua") != 0) {
+        Log("Updater: %s", lua_tostring(U, -1));
+    } else {
+        lua_pushstring(U, opFile.c_str());
+        if (lua_pcall(U, 1, 0, 0) != 0) Log("Updater: %s", lua_tostring(U, -1));
+    }
+    lua_close(U);
+    fs::current_path(ctx.scriptWorkDir, ec);
+}
+
 int l_SpawnProcess(lua_State* L) {
     LuaCheck(L, lua_gettop(L) >= 1, "Usage: SpawnProcess(cmdName[, args])");
     std::string cmd(ArgString(L, "SpawnProcess", 1));
-    const char* args = lua_tostring(L, 2);
-    // PoB only spawns processes for the Windows updater (docs/API.md §8.4).
-    Log("SpawnProcess(%s, %s) is not supported yet", cmd.c_str(), args ? args : "");
+    std::string args = lua_tostring(L, 2) ? lua_tostring(L, 2) : "";
+    // PoB only spawns processes for the Windows updater: <runtime>/Update with
+    // "UpdateApply.lua <ops>" (Launch.lua:329). Apply those ops now and restart
+    // after the Exit() that follows (docs/API.md §8.4).
+    auto stem = FromUtf8(cmd).stem().u8string();
+    constexpr std::string_view kApply = "UpdateApply.lua ";
+    if (stem == u8"Update" && args.starts_with(kApply)) {
+        Log("Updater: applying %s", args.c_str());
+        RunUpdateApply(args.substr(kApply.size()));
+        Ctx().restartAfterExit = true;
+        return 0;
+    }
+    Log("SpawnProcess(%s, %s) is not supported", cmd.c_str(), args.c_str());
     return 0;
 }
 

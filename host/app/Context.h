@@ -47,6 +47,9 @@ struct HostContext {
     // Script control.
     bool restartRequested = false;
     bool exitRequested = false;
+    // The Windows updater's "basic" mode ran in-process; turn the following
+    // Exit() into a restart (docs/API.md §8.4).
+    bool restartAfterExit = false;
     std::string exitMessage;
 
     std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();

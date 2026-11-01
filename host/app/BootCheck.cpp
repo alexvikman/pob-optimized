@@ -7,7 +7,7 @@ namespace pob {
 
 namespace {
 
-constexpr auto kPhaseTimeout = std::chrono::seconds(120);
+constexpr auto kPhaseTimeout = std::chrono::minutes(15);
 
 // PoB shows errors as launch.promptMsg instead of crashing. After boot it opens
 // "Unnamed build" (BUILD) or the mode saved in Settings.xml (usually LIST).

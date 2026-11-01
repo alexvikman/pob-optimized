@@ -115,6 +115,8 @@ std::optional<std::string> SubScript::Start() {
         lua_setglobal(L_, name.c_str());
     }
     lua_pushcfunction(L_, Traceback);
+    // PoB passes whole files such as UpdateCheck.lua, which start with "#@".
+    BlankLeadingHashLine(script_);
     if (luaL_loadbuffer(L_, script_.data(), script_.size(), "subscript")) {
         std::string err = lua_tostring(L_, -1) ? lua_tostring(L_, -1) : "load failed";
         return err;

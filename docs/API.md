@@ -582,7 +582,7 @@ from §8.1. It writes a manifest with our platform and branch, and creates
      and `Exit()`. On Windows, `Update.exe` is a minimal SG host that runs
      `UpdateApply.lua`, which finally `SpawnProcess`es the main exe again.
 
-### 8.4 ⚠️ Finding: the platform filter does not match the real manifest
+### 8.4 ⚠️ The platform filter does not match the real manifest
 
 The brief assumes that Windows binaries carry `platform="win32"`. **They don't.**
 PoB's `update_manifest.py` writes **`runtime="win32"`** on `.dll` and `.exe` entries
@@ -602,26 +602,49 @@ host whose local platform is anything other than `win32`, that means:
 
 It "works" on Windows only because there the local platform *is* `win32`.
 
-**Proposed host-side fix (to implement in M5; no Lua changes):** the host's `lcurl`
-implementation recognises the download of PoB's own manifest (URL path ending in
-`/manifest.xml` under
-`raw.githubusercontent.com/PathOfBuildingCommunity/PathOfBuilding/`) and normalises
-it before Lua sees it:
+**Host-side fix (no Lua changes):**
 
-- `File` entries with `runtime="…"` get `platform="…"` too. The Windows binaries are
-  then filtered out by PoB's own check.
-- Runtime-part files without a platform (`lua/*.lua`, fonts) are moved to a host part,
-  `part="runtime-native"`, and a matching `<Source part="runtime-native" url="…/runtime/"/>`
-  is added. Because our script dir equals our runtime dir, those files still land in
-  the right place (`fullPath = scriptPath/name`). The update stays in `"normal"` mode,
-  so `SpawnProcess`/`Update.exe` and the `start` op are never needed.
-- The same transformation is applied at build time to the bundled `manifest.xml`, so
-  local and remote agree from the start.
+- **Remote manifest.** The host's `lcurl.safe` is a thin wrapper around Lua-cURLv3
+  (`host/lua/Modules.cpp`). When an easy handle downloads PoB's own manifest
+  (`https://raw.githubusercontent.com/PathOfBuildingCommunity/PathOfBuilding/<branch>/manifest.xml`),
+  the body is buffered, passed through `TransformManifest` (`host/core/Install.cpp`)
+  and only then handed to PoB's write callback. Every other request passes through
+  untouched. The transform changes only these lines:
+  - `File` entries with `runtime="X"` (or `platform="X"`) for another platform get
+    `platform="X"`, so PoB's own filter skips the 26 Windows binaries.
+  - Runtime-part files without a platform (`lua/*.lua`, fonts) move to
+    `part="runtime-native"`. A `<Source part="runtime-native" url="…/runtime/"/>` is
+    added for them. Our script dir equals our runtime dir, so the files still land in
+    the right place (`fullPath = scriptPath/name`). The update stays in `"normal"`
+    mode, so `SpawnProcess`/`Update.exe` and the `start` op are never needed.
+- **Local manifest.** On install the host writes the same transform of the bundled
+  manifest, with `Version branch="master" platform="native-macos"`, minus the
+  foreign files. It also creates `installed.cfg`.
+- **Fallback.** `SpawnProcess(<runtime>/Update, "UpdateApply.lua <ops>")` runs
+  `UpdateApply.lua` with that op file in a bare Lua state right away (its final
+  `start` op is ignored). The `Exit()` that follows is turned into a restart. Any
+  other `SpawnProcess` is logged and ignored, since PoB uses it for nothing else.
+- `--print-manifest FILE` prints a manifest as the updater sees it after the
+  transform.
 
-As a fallback, `SpawnProcess(<runtime>/Update, "UpdateApply.lua <ops>")` is handled
-internally: the host runs `UpdateApply.lua` with that op file in a bare Lua state
-after `Exit()`, then relaunches itself. `SpawnProcess` of any other path launches the
-executable detached, matching SG.
+**Verified end to end:** bundle PoB 2.66.0, start it, and let the in-app update
+run. The update:
+
+- downloaded 160 changed files, none of them `.dll` or `.exe`,
+- moved them into place, and restarted into 2.67.2,
+- left a manifest that PoB wrote itself with `Version platform="native-macos"
+  branch="master"` and no Windows entries.
+
+A second start applied one more update (see below), and a third cold start reported
+"No update available" with the platform still `native-macos`.
+
+**Upstream quirk on case-insensitive filesystems (APFS, NTFS):** 2.67 renamed
+`Assets/BreachIcon.png` to `breachicon.png`. `UpdateApply.lua` first writes
+`breachicon.png`, which is the same file on these filesystems, then deletes
+`BreachIcon.png`, which removes it. The next update check sees the file missing and
+downloads it again. That time there is no delete op, so it sticks. The Windows
+build behaves the same way. It heals itself on the next update, so the host does
+nothing about it.
 
 Platform strings: **`native-macos`** and **`native-win64`**. They are deliberately
 not `macos` or `win64`, so they can never collide with anything upstream might add.
@@ -704,8 +727,6 @@ acceptable, because the stub does nothing and the log line makes the gap visible
   been done.
 - **M4:** OAuth character import needs LuaSocket to bind a localhost port. Check that
   the macOS firewall prompt does not appear for loopback-only binds.
-- **M5:** confirm that the manifest normalisation keeps the SHA-1s intact, by checking
-  that an update right after a fresh install reports "No update available".
 - **M7:** LuaJIT on arm64 under the hardened runtime needs the
   `com.apple.security.cs.allow-jit` entitlement. Ad-hoc signing without the hardened
   runtime does not.

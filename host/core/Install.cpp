@@ -2,6 +2,7 @@
 
 #include "core/Log.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstring>
 #include <fstream>
@@ -75,7 +76,104 @@ std::string ReplaceAll(std::string s, std::string_view from, std::string_view to
     return s;
 }
 
+std::string EscapeAttr(std::string_view s) {
+    std::string out;
+    for (char c : s) {
+        switch (c) {
+        case '&': out += "&amp;"; break;
+        case '<': out += "&lt;"; break;
+        case '>': out += "&gt;"; break;
+        case '"': out += "&quot;"; break;
+        default: out += c;
+        }
+    }
+    return out;
+}
+
+// Serialises one element, attributes in a stable order (known keys first).
+std::string FormatElement(const ManifestElement& el) {
+    static const char* kOrder[] = {"number", "name", "part", "platform", "runtime", "branch", "url", "sha1"};
+    std::string out = "<" + el.tag;
+    std::vector<std::string> done;
+    auto emit = [&](const std::string& key, const std::string& val) {
+        out += " " + key + "=\"" + EscapeAttr(val) + "\"";
+        done.push_back(key);
+    };
+    for (const char* key : kOrder) {
+        if (auto* v = el.Attr(key)) emit(key, *v);
+    }
+    for (auto& [key, val] : el.attrs) {
+        if (std::find(done.begin(), done.end(), key) == done.end()) emit(key, val);
+    }
+    return out + " />";
+}
+
 } // namespace
+
+std::string TransformManifest(std::string_view text, const ManifestTransform& options) {
+    std::vector<ManifestElement> probe;
+    if (!ParseManifest(text, probe)) return std::string(text);
+
+    std::string out;
+    out.reserve(text.size());
+    std::string runtimeUrl;
+    bool hasNativeSource = false;
+    size_t lineStart = 0;
+    while (lineStart < text.size()) {
+        size_t lineEnd = text.find('\n', lineStart);
+        if (lineEnd == std::string_view::npos) lineEnd = text.size();
+        std::string_view line = text.substr(lineStart, lineEnd - lineStart);
+        lineStart = lineEnd + 1;
+        std::string_view trimmed = line.substr(line.find_first_not_of(" \t\r") == std::string_view::npos
+                                                   ? line.size()
+                                                   : line.find_first_not_of(" \t\r"));
+        std::string indent(line.substr(0, line.size() - trimmed.size()));
+        bool crlf = !line.empty() && line.back() == '\r';
+        auto emitLine = [&](const std::string& s) { out += s + (crlf ? "\r\n" : "\n"); };
+
+        std::vector<ManifestElement> els;
+        bool isElement = trimmed.starts_with("<Version") || trimmed.starts_with("<Source") || trimmed.starts_with("<File");
+        if (!isElement) {
+            // The closing root tag: add the runtime-native source if it is still missing.
+            if (trimmed.starts_with("</PoBVersion") && !hasNativeSource && !runtimeUrl.empty()) {
+                emitLine(indent + "\t<Source part=\"" + kRuntimeNativePart + "\" url=\"" + EscapeAttr(runtimeUrl) + "\" />");
+                hasNativeSource = true;
+            }
+            out += line;
+            if (lineEnd < text.size()) out += '\n';
+            continue;
+        }
+        std::string wrapped = "<PoBVersion>" + std::string(trimmed) + "</PoBVersion>";
+        if (!ParseManifest(wrapped, els) || els.size() != 1) {
+            out += line;
+            if (lineEnd < text.size()) out += '\n';
+            continue;
+        }
+        ManifestElement el = std::move(els[0]);
+
+        if (el.tag == "Version") {
+            if (!options.branch.empty()) {
+                el.attrs["branch"] = options.branch;
+                el.attrs["platform"] = kNativePlatform;
+            }
+        } else if (el.tag == "Source") {
+            const std::string* part = el.Attr("part");
+            if (part && *part == "runtime" && el.Attr("url")) runtimeUrl = *el.Attr("url");
+            if (part && *part == kRuntimeNativePart) hasNativeSource = true;
+        } else if (el.tag == "File") {
+            const std::string* platform = el.Attr("platform");
+            if (!platform) platform = el.Attr("runtime");
+            if (platform && *platform != kNativePlatform) {
+                if (options.dropForeignFiles) continue;
+                el.attrs["platform"] = *platform;
+            } else if (const std::string* part = el.Attr("part"); part && *part == "runtime") {
+                el.attrs["part"] = kRuntimeNativePart;
+            }
+        }
+        emitLine(indent + FormatElement(el));
+    }
+    return out;
+}
 
 const std::string* ManifestElement::Attr(const std::string& key) const {
     auto it = attrs.find(key);
@@ -171,13 +269,19 @@ std::optional<std::string> EnsureInstalled(const HostPaths& paths) {
         ++copied;
     }
 
+    // installed.cfg makes PoB keep user data in Documents rather than next to the
+    // scripts (Main.lua:86, docs/API.md §8.1).
+    std::ofstream(paths.data / "installed.cfg", std::ios::binary).flush();
+
     // The manifest is written last so an interrupted copy is retried on the next
-    // start. It is the repository manifest for now: without branch/platform PoB
-    // runs in dev mode and does not self-update (docs/API.md §8).
+    // start. Branch "master" is where PoB publishes releases.
+    ManifestTransform transform;
+    transform.branch = "master";
+    transform.dropForeignFiles = true;
     std::ofstream out(paths.data / "manifest.xml", std::ios::binary);
-    out << *bundleText;
+    out << TransformManifest(*bundleText, transform);
     if (!out) return "Could not write manifest.xml";
-    Log("Installed %zu files", copied);
+    Log("Installed %zu files (platform %s)", copied, kNativePlatform);
     return std::nullopt;
 }
 

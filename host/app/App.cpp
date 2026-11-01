@@ -140,6 +140,11 @@ int App::Run(const AppOptions& options) {
             ReportFatal(script_->FatalError());
             return 1;
         }
+        if (ctx.exitRequested && ctx.restartAfterExit) {
+            ctx.exitRequested = false;
+            ctx.restartAfterExit = false;
+            ctx.restartRequested = true;
+        }
         if (ctx.restartRequested) {
             Log("Restarting script");
             // The window and renderer survive a restart, as in SimpleGraphic, so

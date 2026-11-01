@@ -38,6 +38,10 @@ inline void SetGlobalFunction(lua_State* L, const char* name, lua_CFunction fn) 
     lua_setglobal(L, name);
 }
 
+// Blanks a leading '#' line (keeping the newline) that old LuaJIT skipped but
+// current LuaJIT parses as a line-number directive; see LoadLuaFile.
+void BlankLeadingHashLine(std::string& text);
+
 // luaL_loadfile replacement. PoB files may start with a "#@" line that older
 // LuaJIT skipped but current LuaJIT parses as a line-number directive; the line
 // is blanked so line numbers in errors stay the same.

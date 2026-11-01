@@ -21,6 +21,7 @@ struct HostPaths {
 struct PathOverrides {
     std::optional<fs::path> bundle;
     std::optional<fs::path> data;
+    std::optional<fs::path> user;
 };
 
 // Resolves all paths; returns an error message on failure.

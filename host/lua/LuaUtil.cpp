@@ -47,6 +47,14 @@ void PushPath(lua_State* L, const std::filesystem::path& p) {
     lua_pushlstring(L, s.data(), s.size());
 }
 
+void BlankLeadingHashLine(std::string& text) {
+    size_t skip = (text.size() >= 3 && text.compare(0, 3, "\xEF\xBB\xBF") == 0) ? 3 : 0;
+    if (text.size() > skip && text[skip] == '#') {
+        size_t eol = text.find('\n', skip);
+        text.erase(skip, (eol == std::string::npos ? text.size() : eol) - skip);
+    }
+}
+
 int LoadLuaFile(lua_State* L, const std::filesystem::path& file, const std::string& chunkName) {
     std::ifstream in(file, std::ios::binary);
     if (!in) {
@@ -56,11 +64,7 @@ int LoadLuaFile(lua_State* L, const std::filesystem::path& file, const std::stri
     std::ostringstream ss;
     ss << in.rdbuf();
     std::string text = ss.str();
-    size_t skip = (text.size() >= 3 && text.compare(0, 3, "\xEF\xBB\xBF") == 0) ? 3 : 0;
-    if (text.size() > skip && text[skip] == '#') {
-        size_t eol = text.find('\n', skip);
-        text.replace(skip, (eol == std::string::npos ? text.size() : eol) - skip, "");
-    }
+    BlankLeadingHashLine(text);
     std::string name = "@" + chunkName;
     return luaL_loadbuffer(L, text.data(), text.size(), name.c_str());
 }

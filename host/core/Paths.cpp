@@ -60,7 +60,9 @@ std::optional<std::string> ResolvePaths(const PathOverrides& overrides, HostPath
     if (ec) return "Could not create data directory '" + ToLuaPath(out.data) + "': " + ec.message();
     out.data = fs::weakly_canonical(out.data, ec);
 
-    if (const char* docs = SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS)) {
+    if (overrides.user) {
+        out.user = *overrides.user;
+    } else if (const char* docs = SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS)) {
         out.user = FromUtf8(docs);
     } else {
         out.userError = std::string("Could not obtain the Documents folder: ") + SDL_GetError();

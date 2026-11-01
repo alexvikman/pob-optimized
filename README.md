@@ -27,8 +27,8 @@ it from there.
 ### Development options
 
 ```bash
-# Use a throwaway data directory instead of the real one
-./build/host/PathOfBuilding --data build/pobdata
+# Use throwaway data and user directories instead of the real ones
+./build/host/PathOfBuilding --data build/pobdata --user build/pobuser
 
 # Self test: boot to the main menu, run a subscript round trip and a Restart(),
 # exit 0 on success. --eval runs a Lua file inside PoB after boot.
@@ -45,6 +45,18 @@ POB_HOST_STATS=1 ./build/host/PathOfBuilding --data build/pobdata
 ```
 
 The log is written to `host.log` in the data directory.
+
+### Updates
+
+PoB updates itself from the official repository (`master` branch) through its own
+"Update" button, as on Windows. The host installs PoB with the platform
+`native-macos`/`native-win64` and normalises PoB's manifest so that no Windows
+binaries are downloaded. See docs/API.md §8. To try it with an older bundle:
+
+```bash
+git clone --depth 1 --branch v2.66.0 https://github.com/PathOfBuildingCommunity/PathOfBuilding.git build/pob-old
+./build/host/PathOfBuilding --bundle build/pob-old --data build/upd-data --user build/upd-user
+```
 
 ## Dependencies
 

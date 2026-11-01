@@ -1,6 +1,7 @@
 // package.path / package.preload setup and the lzip module (docs/API.md §6).
 
 #include "app/Context.h"
+#include "core/Install.h"
 #include "lua/Api.h"
 #include "lua/LuaUtil.h"
 
@@ -185,6 +186,87 @@ int luaopen_lzip(lua_State* L) {
     return 1;
 }
 
+// --- lcurl.safe wrapper ----------------------------------------------------
+//
+// Wraps easy handles so that a download of PoB's own manifest.xml is normalised
+// for this host before PoB's UpdateCheck.lua sees it (docs/API.md §8.4). All
+// other requests pass through untouched.
+
+constexpr const char* kCurlWrapper = R"lua(
+local real, transform = ...
+local function pack(...) return { n = select("#", ...), ... } end
+local manifestPattern = "^https://raw%.githubusercontent%.com/PathOfBuildingCommunity/PathOfBuilding/[^/]+/manifest%.xml$"
+
+local function wrapEasy(e)
+    local url, writer, writerArgs
+    local proxy = {}
+    local function forward(name)
+        local f = e[name]
+        if type(f) ~= "function" then return f end
+        return function(self, ...)
+            local r = pack(f(e, ...))
+            if r[1] == e then r[1] = self end -- keep method chaining on the proxy
+            return unpack(r, 1, r.n)
+        end
+    end
+    setmetatable(proxy, { __index = function(t, k) local v = forward(k) rawset(t, k, v) return v end })
+    function proxy:setopt_url(u, ...) url = u return forward("setopt_url")(self, u, ...) end
+    -- Arguments are forwarded exactly: lcurl treats (fn) and (fn, ctx) differently,
+    -- and an explicit nil counts as a context.
+    function proxy:setopt(opt, ...)
+        if opt == real.OPT_URL then url = ... end
+        if opt == real.OPT_WRITEFUNCTION then writer, writerArgs = ..., pack(...) end
+        return forward("setopt")(self, opt, ...)
+    end
+    function proxy:setopt_writefunction(...)
+        writer, writerArgs = ..., pack(...)
+        return forward("setopt_writefunction")(self, ...)
+    end
+    function proxy:perform(...)
+        if not (url and writer and url:match(manifestPattern)) then
+            return forward("perform")(self, ...)
+        end
+        local chunks = {}
+        e:setopt_writefunction(function(d) chunks[#chunks + 1] = d return true end)
+        local ok, err = e:perform(...)
+        if not ok then return ok, err end
+        local text = transform(table.concat(chunks))
+        if type(writer) == "function" then
+            if writerArgs.n >= 2 then writer(writerArgs[2], text) else writer(text) end
+        else
+            writer:write(text)
+        end
+        return self
+    end
+    return proxy
+end
+
+local M = setmetatable({}, { __index = real })
+function M.easy(...)
+    local e, err = real.easy(...)
+    if not e then return e, err end
+    return wrapEasy(e)
+end
+return M
+)lua";
+
+int l_TransformManifest(lua_State* L) {
+    size_t len = 0;
+    const char* text = luaL_checklstring(L, 1, &len);
+    std::string out = TransformManifest(std::string_view(text, len), {});
+    lua_pushlstring(L, out.data(), out.size());
+    return 1;
+}
+
+int luaopen_lcurl_safe_host(lua_State* L) {
+    if (luaL_loadstring(L, kCurlWrapper) != 0) return lua_error(L);
+    lua_pushcfunction(L, luaopen_lcurl_safe);
+    lua_call(L, 0, 1);
+    lua_pushcfunction(L, l_TransformManifest);
+    lua_call(L, 2, 1);
+    return 1;
+}
+
 void Preload(lua_State* L, const char* name, lua_CFunction fn) {
     lua_getglobal(L, "package");
     lua_getfield(L, -1, "preload");
@@ -209,7 +291,7 @@ void SetupPackages(lua_State* L) {
     lua_pop(L, 1);
 
     Preload(L, "lcurl", luaopen_lcurl);
-    Preload(L, "lcurl.safe", luaopen_lcurl_safe);
+    Preload(L, "lcurl.safe", luaopen_lcurl_safe_host);
     Preload(L, "lua-utf8", luaopen_utf8);
     Preload(L, "lzip", luaopen_lzip);
     Preload(L, "socket.core", luaopen_socket_core);
