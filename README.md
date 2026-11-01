@@ -14,7 +14,7 @@ on macOS, MSVC on Windows) and git. All other dependencies are fetched at pinned
 revisions during configure.
 
 ```bash
-git clone --recurse-submodules https://github.com/alexvikman/path-of-building-mac.git
+git clone --recurse-submodules https://github.com/alexvikman/pob-optimized.git
 cmake -S . -B build
 cmake --build build -j8
 ./build/host/PathOfBuilding
