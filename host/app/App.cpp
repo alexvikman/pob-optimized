@@ -125,7 +125,7 @@ int App::Run(const AppOptions& options) {
     BootCheck bootCheck(std::move(checkOptions));
     while (!quit_) {
         // Interim pacing: event driven, ~60 fps while PoB has work in flight.
-        // The low-power scheduler replaces this (docs/API.md §10).
+        // The low-power scheduler replaces this (docs/API.md §11).
         SDL_Event ev;
         int timeout = NeedsFrames() ? 16 : 250;
         if (SDL_WaitEventTimeout(&ev, timeout)) {
