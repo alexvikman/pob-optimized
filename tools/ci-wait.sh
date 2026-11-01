@@ -10,10 +10,16 @@ set -uo pipefail
 ref="${1:?usage: ci-wait.sh <commit-or-tag> [artifact dest]}"
 sha="$(git rev-parse "$ref^{commit}" 2>/dev/null)" || { echo "error: unknown ref '$ref'"; exit 2; }
 
+# A tag and a branch can point at the same commit; for a tag, take the tag's run.
+filter=".headSha==\"$sha\""
+if git show-ref --verify --quiet "refs/tags/$ref"; then
+    filter="$filter and .headBranch==\"$ref\""
+fi
+
 id=""
 for _ in $(seq 1 36); do
-    id="$(gh run list --limit 20 --json databaseId,headSha \
-        --jq "[.[] | select(.headSha==\"$sha\")][0].databaseId // empty")"
+    id="$(gh run list --limit 20 --json databaseId,headSha,headBranch \
+        --jq "[.[] | select($filter)][0].databaseId // empty")"
     [ -n "$id" ] && break
     sleep 5
 done
