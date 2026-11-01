@@ -149,19 +149,45 @@ int App::Run(const AppOptions& options) {
                 auto ms = std::chrono::ceil<std::chrono::milliseconds>(next - now).count();
                 timeout = static_cast<Sint32>(std::min<long long>(ms, 60'000));
             }
+            // The self test must keep checking its phases and timeouts.
+            if (headless_ && (timeout < 0 || timeout > 250)) timeout = 250;
             if (SDL_WaitEventTimeout(&ev, timeout)) HandleEvent(ev);
         }
         while (SDL_PollEvent(&ev)) HandleEvent(ev);
         if (quit_) break;
         UpdateWindowState();
         now = std::chrono::steady_clock::now();
-        if (now < scheduler_->NextFrame(now, Busy())) continue;
+        if (now >= scheduler_->NextFrame(now, Busy())) {
+            if (!RunScheduledFrame(options)) break;
+        }
+        if (exitCode_) return *exitCode_;
+        if (options.checkBoot) {
+            auto result = bootCheck.Step(*script_, Settled());
+            if (result != BootCheck::Result::Running) {
+                std::printf("%s", bootCheck.Report().c_str());
+                Log("Boot check %s:\n%s", result == BootCheck::Result::Passed ? "passed" : "FAILED",
+                    bootCheck.Report().c_str());
+                script_->Shutdown();
+                return result == BootCheck::Result::Passed ? 0 : 2;
+            }
+        }
+    }
+    script_->Shutdown();
+    return exitCode_.value_or(0);
+}
+
+// Runs one frame plus what follows it (errors, restart, exit, --eval). Returns
+// false when the app should leave the loop.
+bool App::RunScheduledFrame(const AppOptions& options) {
+    auto& ctx = Ctx();
+    {
         RunFrame();
         if (statsEnabled_) LogStats(false);
 
         if (script_->HasFatalError()) {
             ReportFatal(script_->FatalError());
-            return 1;
+            exitCode_ = 1;
+            return false;
         }
         if (ctx.exitRequested && ctx.restartAfterExit) {
             ctx.exitRequested = false;
@@ -175,33 +201,23 @@ int App::Run(const AppOptions& options) {
             script_->Shutdown();
             if (!script_->Start()) {
                 ReportFatal(script_->FatalError());
-                return 1;
+                exitCode_ = 1;
+                return false;
             }
             framesRun_ = 0;
             forceRender_ = true;
         }
         if (ctx.exitRequested) {
             if (!ctx.exitMessage.empty()) Log("Exit: %s", ctx.exitMessage.c_str());
-            break;
+            return false;
         }
-        if (options.maxFrames && framesRun_ >= options.maxFrames) break;
+        if (options.maxFrames && framesRun_ >= options.maxFrames) return false;
         if (!pendingEval_.empty() && Settled()) {
             Log("eval: %s", script_->Eval(pendingEval_.c_str()).c_str());
             pendingEval_.clear();
         }
-        if (options.checkBoot) {
-            auto result = bootCheck.Step(*script_, Settled());
-            if (result != BootCheck::Result::Running) {
-                std::printf("%s", bootCheck.Report().c_str());
-                Log("Boot check %s:\n%s", result == BootCheck::Result::Passed ? "passed" : "FAILED",
-                    bootCheck.Report().c_str());
-                script_->Shutdown();
-                return result == BootCheck::Result::Passed ? 0 : 2;
-            }
-        }
     }
-    script_->Shutdown();
-    return 0;
+    return true;
 }
 
 bool App::Busy() const {
@@ -214,6 +230,12 @@ bool App::Settled() const {
 }
 
 void App::UpdateWindowState() {
+    if (headless_) {
+        // CI machines have no visible screen; the self test behaves as if the
+        // window were in front and focused.
+        scheduler_->SetWindowState(true, true);
+        return;
+    }
     auto flags = SDL_GetWindowFlags(Ctx().window);
     bool visible = !(flags & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED | SDL_WINDOW_OCCLUDED));
     bool focused = (flags & SDL_WINDOW_INPUT_FOCUS) != 0;

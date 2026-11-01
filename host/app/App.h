@@ -42,6 +42,7 @@ private:
     bool InitWindow(int width, int height);
     void HandleEvent(const SDL_Event& ev);
     void RunFrame();
+    bool RunScheduledFrame(const AppOptions& options);
     // Background work that needs frames to progress (boot, PoB coroutines).
     bool Busy() const;
     // Nothing left to do: used by the self test to know PoB has settled.
@@ -58,6 +59,7 @@ private:
     bool lastFrameComplete_ = true;
     Uint32 wakeEvent_ = 0;
     bool quit_ = false;
+    std::optional<int> exitCode_;
     std::unique_ptr<FrameScheduler> scheduler_;
     bool inFrame_ = false;
     bool forceRender_ = true;
