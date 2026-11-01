@@ -32,7 +32,24 @@ FetchContent_Declare(stb
     GIT_REPOSITORY https://github.com/nothings/stb.git
     GIT_TAG        003501f6d7a8668ce8b6d875e34dd97ad0d5d5b5)
 
-FetchContent_MakeAvailable(SDL3 zlib stb)
+# --- libwebp (decoder only; PoB ships .webp tree art) ------------------------
+set(WEBP_BUILD_ANIM_UTILS OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_CWEBP OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_DWEBP OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_GIF2WEBP OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_IMG2WEBP OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_VWEBP OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_WEBPINFO OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_LIBWEBPMUX OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_WEBPMUX OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
+set(WEBP_BUILD_FUZZTEST OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(libwebp
+    GIT_REPOSITORY https://github.com/webmproject/libwebp.git
+    GIT_TAG        v1.6.0
+    GIT_SHALLOW    TRUE)
+
+FetchContent_MakeAvailable(SDL3 zlib stb libwebp)
 
 if(TARGET zlibstatic)
     set(POB_ZLIB_TARGET zlibstatic)
@@ -69,3 +86,4 @@ else()
 endif()
 
 include(LuaJIT)
+include(LuaModules)

@@ -37,9 +37,12 @@ source strings do not show up in the scan; those were found with grep and are li
    which is the runtime directory when `require` runs from the main script.
 3. The registry holds a `traceback` function, used by `PCall`/`PLoadModule`.
 4. The script file is loaded with `luaL_loadfile`. Several PoB files begin with a
-   `#@` line (`Launch.lua`, `UpdateCheck.lua`, `UpdateApply.lua`, `LaunchInstall.lua`),
-   and `luaL_loadfile` skips a first line that starts with `#`. **We must load files the
-   same way. `luaL_loadstring` on the raw text fails.**
+   `#@` line (`Launch.lua`, `UpdateCheck.lua`, `UpdateApply.lua`, `LaunchInstall.lua`).
+   The LuaJIT that SG pins (2022) skipped any first line starting with `#`. **Current
+   LuaJIT only skips `#!` and parses other `#` lines as line-number directives**, so
+   loading `Launch.lua` fails with "unexpected symbol near '#'". The host therefore
+   loads every file itself (`LoadLuaFile`): it blanks a leading `#` line, keeping the
+   line numbers, and loads the result with chunk name `@<relative path>`.
 5. The script runs with the `argv` strings as arguments, and a global `arg` table is
    set (`arg[0]` = script).
 6. If the script did not exit or restart: call `OnInit`.
@@ -539,7 +542,7 @@ Marker files in the script dir:
 
 | What | macOS | Windows |
 |---|---|---|
-| Script dir = runtime dir (writable, updated in place) | `~/Library/Application Support/PathOfBuilding-Native/` | `%LOCALAPPDATA%\PathOfBuilding-Native\` |
+| Script dir = runtime dir (writable, updated in place) | `~/Library/Application Support/PathOfBuilding-Native/` | `%APPDATA%\PathOfBuilding-Native\` (`SDL_GetPrefPath`) |
 | User path (`GetUserPath()`) | `~/Documents` (PoB adds `/Path of Building/`) | Documents (same as the original) |
 | Bundled PoB copy (read-only) | `PoB.app/Contents/Resources/PathOfBuilding/` | next to the exe |
 
@@ -635,8 +638,8 @@ app unusable.
 After the API is registered, the host sets a metatable on `_G` in the main state
 only. Its `__index` handler works like this:
 
-- A missing name that **looks like a host API function** (matches
-  `^[A-Z][A-Za-z0-9]*$`) and is **not** on an allow-nil list gets a stub. The stub
+- A missing name that **looks like a host API function** (CamelCase: matches
+  `^[A-Z][a-z][A-Za-z0-9]*$`, so `CONSTANTS` and `Snake_Case` are excluded) and is **not** on an allow-nil list gets a stub. The stub
   logs `[host] unimplemented API function '<name>' (first called from <file>:<line>)`
   once, using `debug.getinfo(2, "Sl")`, and returns no values. The stub is cached in
   `_G`, so the lookup happens once per name.
@@ -644,9 +647,11 @@ only. Its `__index` handler works like this:
   `nil`, as in the original.
 - The **allow-nil list** holds names that PoB tests for existence and that must stay
   `nil` when they are absent. Today that is `UpdateProgress` (a subscript-only sub),
-  plus every name PoB reads in a guard pattern (`if X then`, `X and X()`,
-  `if not X then`). M2 adds a check that greps PoB for these patterns, so the list
-  stays current when PoB updates.
+  plus any name PoB reads in a guard pattern (`if X then`, `X and X()`,
+  `if not X then`) that the host does not provide. A grep of v2.67.2 finds only
+  `UpdateProgress`, `SetDPIScaleOverridePercent` and `GetScreenScale`, and the host
+  implements the last two. `--check-boot` logs any stub created during boot, so a
+  new guarded name shows up in the log.
 - `__newindex` is left alone, so PoB can still define and override globals normally.
 
 The risk: a future guarded call (`if NewApi then NewApi() end`) whose name is not on

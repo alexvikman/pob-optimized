@@ -17,8 +17,25 @@ revisions during configure.
 git clone --recurse-submodules https://github.com/alexvikman/path-of-building-mac.git
 cmake -S . -B build
 cmake --build build -j8
-./build/host/PathOfBuilding --smoke
+./build/host/PathOfBuilding
 ```
+
+On first start the host copies PoB from the `PathOfBuilding/` submodule into its data
+directory (`~/Library/Application Support/PathOfBuilding-Native/` on macOS) and runs
+it from there.
+
+### Development options
+
+```bash
+# Use a throwaway data directory instead of the real one
+./build/host/PathOfBuilding --data build/pobdata
+
+# Self test: boot to the main menu, run a subscript round trip and a Restart(),
+# exit 0 on success. --eval runs a Lua file inside PoB after boot.
+./build/host/PathOfBuilding --data build/pobdata --check-boot [--eval probe.lua]
+```
+
+The log is written to `host.log` in the data directory.
 
 ## Dependencies
 
@@ -29,9 +46,11 @@ cmake --build build -j8
 | zlib | 1.3.2 | |
 | stb | `003501f` | stb_image |
 | libcurl | system on macOS, 8.23.0 (Schannel) on Windows | |
+| libwebp | 1.6.0 | decoder only; PoB ships WebP tree art |
+| Lua-cURLv3, luautf8 | SimpleGraphic's pinned revisions | `lcurl`, `lua-utf8` Lua modules |
 
 ## Licenses
 
 Path of Building and SimpleGraphic are both MIT licensed (© David Gowor and the
-PoB Community). SimpleGraphic is used as a behavioural reference; any code adapted
-from it keeps its copyright notice.
+PoB Community). Code adapted from SimpleGraphic keeps its notice; see
+[LICENSE-THIRD-PARTY.md](LICENSE-THIRD-PARTY.md).
