@@ -10,6 +10,7 @@
 
 namespace pob {
 
+class AppUpdate;
 class FrameScheduler;
 class Renderer;
 class ScriptHost;
@@ -61,6 +62,7 @@ private:
     bool quit_ = false;
     std::optional<int> exitCode_;
     std::unique_ptr<FrameScheduler> scheduler_;
+    std::unique_ptr<AppUpdate> appUpdate_;
     bool inFrame_ = false;
     bool forceRender_ = true;
     uint64_t lastHash_ = 0;

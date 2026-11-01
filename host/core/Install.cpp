@@ -48,8 +48,11 @@ std::string DecodeEntities(std::string_view s) {
     return out;
 }
 
-// Compares dotted version numbers ("2.67.2"); non-numeric parts compare as 0.
+} // namespace
+
 int CompareVersions(std::string_view a, std::string_view b) {
+    if (a.starts_with('v')) a.remove_prefix(1);
+    if (b.starts_with('v')) b.remove_prefix(1);
     auto next = [](std::string_view& s) {
         int v = 0;
         size_t i = 0;
@@ -64,6 +67,8 @@ int CompareVersions(std::string_view a, std::string_view b) {
     }
     return 0;
 }
+
+namespace {
 
 // Repository subdirectory of each manifest part (PathOfBuilding/manifest.cfg).
 std::optional<fs::path> RepoDirForPart(const std::string& part) {

@@ -1,6 +1,7 @@
 add_executable(pob_host
     main.cpp
     app/App.cpp
+    app/AppUpdate.cpp
     app/BootCheck.cpp
     app/Context.cpp
     app/FrameScheduler.cpp
@@ -52,6 +53,8 @@ target_link_libraries(pob_host PRIVATE
 
 target_compile_definitions(pob_host PRIVATE
     POB_HOST_VERSION="${PROJECT_VERSION}"
+    # GitHub repository whose releases the app checks for host updates.
+    POB_HOST_REPO="alexvikman/pob-optimized"
     # Development fallback when no bundled copy sits next to the executable.
     POB_DEV_BUNDLE_DIR="${PROJECT_SOURCE_DIR}/PathOfBuilding")
 

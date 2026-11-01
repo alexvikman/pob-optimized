@@ -39,6 +39,10 @@ backgroundFps = 0
 skipIdenticalFrames = true
 
 vsync = true
+
+# Once a day, check GitHub for a newer release of this app (not of PoB, which
+# updates itself) and show a small notice. false turns it off.
+checkForAppUpdates = true
 )";
 
 std::string Trim(std::string s) {
@@ -78,6 +82,7 @@ LoopConfig LoadLoopConfig(const std::filesystem::path& file) {
         else if (key == "backgroundFps") num(cfg.backgroundFps);
         else if (key == "skipIdenticalFrames") flag(cfg.skipIdenticalFrames);
         else if (key == "vsync") flag(cfg.vsync);
+        else if (key == "checkForAppUpdates") flag(cfg.checkForAppUpdates);
         else Log("%s: unknown setting '%s'", ToLuaPath(file).c_str(), key.c_str());
     }
     cfg.maxFps = std::clamp(cfg.maxFps, 1.0, 1000.0);

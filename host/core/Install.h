@@ -22,6 +22,10 @@ bool ParseManifest(std::string_view text, std::vector<ManifestElement>& out);
 
 std::string ManifestVersion(const std::vector<ManifestElement>& elements);
 
+// Compares dotted version numbers ("2.67.2", "v0.1.1"); a leading "v" and
+// non-numeric parts are ignored. Returns <0, 0 or >0.
+int CompareVersions(std::string_view a, std::string_view b);
+
 // Our platform string in manifests (docs/API.md §8.4). Deliberately not "macos" or
 // "win64" so it cannot collide with anything upstream adds.
 #if defined(__APPLE__)

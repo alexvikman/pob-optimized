@@ -1,5 +1,6 @@
 #include "app/App.h"
 
+#include "app/AppUpdate.h"
 #include "app/BootCheck.h"
 #include "app/Context.h"
 #include "app/FrameScheduler.h"
@@ -109,6 +110,9 @@ int App::Run(const AppOptions& options) {
     ctx.runtimePath = ctx.paths.data;
 
     scheduler_ = std::make_unique<FrameScheduler>(LoadLoopConfig(ctx.paths.data / "host-settings.ini"));
+    // The self test never talks to GitHub about host releases.
+    appUpdate_ = std::make_unique<AppUpdate>(ctx.paths.data / "host-state.ini",
+                                             scheduler_->Config().checkForAppUpdates && !options.checkBoot);
     curl_global_init(CURL_GLOBAL_DEFAULT);
     if (!InitWindow(options.width, options.height)) return 1;
 
@@ -161,6 +165,7 @@ int App::Run(const AppOptions& options) {
         }
         while (SDL_PollEvent(&ev)) HandleEvent(ev);
         if (quit_) break;
+        appUpdate_->Poll();
         UpdateWindowState();
         now = std::chrono::steady_clock::now();
         if (now >= scheduler_->NextFrame(now, Busy())) {
@@ -255,6 +260,7 @@ void App::RunFrame() {
     auto start = std::chrono::steady_clock::now();
     ctx.draw.BeginFrame(ctx.ScreenWidth(), ctx.ScreenHeight());
     script_->Frame();
+    if (ctx.fontsLoaded) appUpdate_->Draw(ctx.draw, ctx.fonts, ctx.Scale());
     ++framesRun_;
     auto luaDone = std::chrono::steady_clock::now();
 
@@ -347,6 +353,12 @@ void App::HandleEvent(const SDL_Event& ev) {
         bool down = ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
         ctx.cursorX = ev.button.x;
         ctx.cursorY = ev.button.y;
+        // The host's own update notice sits on top of PoB and takes its clicks.
+        float toPixels = ctx.dpiAware ? ctx.DisplayScale() : 1.0f;
+        if (down && appUpdate_->HandleClick(ev.button.x * toPixels, ev.button.y * toPixels)) {
+            scheduler_->OnInput(now);
+            break;
+        }
         ctx.keyDown[key] = down;
         scheduler_->OnInput(now);
         if (!down) {

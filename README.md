@@ -98,6 +98,16 @@ rates can be set in `host-settings.ini`; see [docs/PERFORMANCE.md](docs/PERFORMA
 
 ### Updates
 
+There are two kinds of update:
+
+- **Path of Building's content** (skills, gems, uniques, tree, calculations)
+  updates from inside the app through PoB's own "Update" button.
+- **This app** checks once a day for a newer release in this repository and shows
+  a small notice with a **Download** button. **×** hides it for that version.
+  Turn it off with `checkForAppUpdates = false` in `host-settings.ini`.
+
+#### PoB content
+
 PoB updates itself from the official repository (`master` branch) through its own
 "Update" button, as on Windows. The host installs PoB with the platform
 `native-macos`/`native-win64` and normalises PoB's manifest so that no Windows

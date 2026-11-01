@@ -18,6 +18,8 @@ struct LoopConfig {
     double backgroundFps = 0;   // unfocused; 0 = only on events
     bool skipIdenticalFrames = true;
     bool vsync = true;
+    // Not pacing, but kept in the same file: daily check for a newer host release.
+    bool checkForAppUpdates = true;
 };
 
 // Reads the settings file, creating it with the defaults (documented) if missing.
