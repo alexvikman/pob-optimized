@@ -18,8 +18,15 @@ and settings go to `~/Documents/Path of Building/`.
 
 ### Windows x64
 
-Download `PathOfBuilding-win64.zip`, extract it (right-click › Extract All), and
-run `PathOfBuilding.exe` in the extracted folder. Don't run it from inside the zip. PoB's files go to `%APPDATA%\PathOfBuilding-Native\`. Builds and
+Download and run **`PathOfBuilding-Setup-win64.exe`**. Like the official setup it
+installs for your user only, without administrator rights (to
+`%LOCALAPPDATA%\Programs\Path of Building Native`). It adds Start menu and
+desktop shortcuts and an uninstaller under Settings › Apps. It installs next to
+an official PoB without affecting it.
+
+Portable alternative: extract `PathOfBuilding-win64.zip` (right-click › Extract
+All) and run `PathOfBuilding.exe` in the extracted folder. Don't run it from
+inside the zip. PoB's files go to `%APPDATA%\PathOfBuilding-Native\`. Builds and
 settings go to `Documents\Path of Building\`, the same place the official version
 uses, so both see the same builds.
 

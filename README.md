@@ -32,13 +32,19 @@ packaging/macos/make-app.sh build dist
 ```
 
 ```powershell
-# Windows (from a Visual Studio developer prompt): dist/PathOfBuilding-win64.zip
+# Windows (from a Visual Studio developer prompt): dist/PathOfBuilding-win64.zip,
+# plus dist/PathOfBuilding-Setup-win64.exe when NSIS is installed
 packaging/windows/package.ps1 -Build build -Out dist
 ```
 
+The Windows setup (`packaging/windows/installer.nsi`) installs per user without
+administrator rights, like the official PoB setup. It adds Start menu and desktop
+shortcuts and an uninstaller under Settings › Apps.
+
 GitHub Actions (`.github/workflows/build.yml`) builds both on every push, runs the
-unit tests and the `--check-boot` self test on the packaged app, and uploads the
-`.app` zip and the Windows zip as artifacts.
+unit tests and the `--check-boot` self test on the packaged app, installs, runs and
+uninstalls the Windows setup, and uploads the `.app` zip, the Windows setup and the
+Windows zip as artifacts.
 
 **Releases:** pushing a tag `vX.Y.Z` that matches `VERSION` in `CMakeLists.txt`
 builds both platforms and creates a **draft** GitHub release with both packages and

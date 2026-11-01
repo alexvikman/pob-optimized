@@ -25,3 +25,19 @@ if (Test-Path $Zip) { Remove-Item -Force $Zip }
 # after the zip, so a top-level folder inside would nest twice.
 Compress-Archive -Path (Join-Path $Dir "*") -DestinationPath $Zip
 Write-Host "Built $Zip"
+
+# Installer (NSIS, preinstalled on GitHub's Windows runners).
+$Makensis = Get-Command makensis -ErrorAction SilentlyContinue
+if (-not $Makensis) {
+    $Candidate = Join-Path ${env:ProgramFiles(x86)} "NSIS\makensis.exe"
+    if (Test-Path $Candidate) { $Makensis = Get-Item $Candidate }
+}
+if ($Makensis) {
+    $Version = (Select-String -Path (Join-Path $Repo "CMakeLists.txt") -Pattern '^\s+VERSION ([0-9.]+)$').Matches[0].Groups[1].Value
+    $Setup = Join-Path (Resolve-Path $Out) "PathOfBuilding-Setup-win64.exe"
+    & $Makensis.Source /V2 "/DVERSION=$Version" "/DSRC=$((Resolve-Path $Dir).Path)" "/DOUT=$Setup" (Join-Path $PSScriptRoot "installer.nsi")
+    if ($LASTEXITCODE -ne 0) { throw "makensis failed" }
+    Write-Host "Built $Setup"
+} else {
+    Write-Warning "NSIS not found; skipping the installer"
+}

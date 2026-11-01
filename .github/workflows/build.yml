@@ -91,10 +91,34 @@ jobs:
           Get-Content "$env:RUNNER_TEMP\pob-data\host.log" -Tail 40
           if ($p.ExitCode -ne 0) { throw "self test failed with exit code $($p.ExitCode)" }
 
+      - name: Installer test (install, run, uninstall)
+        shell: pwsh
+        run: |
+          $dir = "$env:RUNNER_TEMP\pob-install"
+          $setup = Start-Process -FilePath dist/PathOfBuilding-Setup-win64.exe -Wait -PassThru -ArgumentList "/S", "/D=$dir"
+          if ($setup.ExitCode -ne 0) { throw "setup failed: $($setup.ExitCode)" }
+          if (-not (Test-Path "$dir\PathOfBuilding.exe")) { throw "exe not installed" }
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Path of Building (Native).lnk")) { throw "no Start menu shortcut" }
+          $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PathOfBuildingNative"
+          Write-Host "Registered: $((Get-ItemProperty $key).DisplayName) $((Get-ItemProperty $key).DisplayVersion)"
+          $p = Start-Process -FilePath "$dir\PathOfBuilding.exe" -Wait -PassThru -NoNewWindow `
+            -ArgumentList "--data", "$env:RUNNER_TEMP\pob-data-installed", "--user", "$env:RUNNER_TEMP\pob-user", "--check-boot"
+          if ($p.ExitCode -ne 0) { throw "installed app self test failed: $($p.ExitCode)" }
+          $u = Start-Process -FilePath "$dir\Uninstall.exe" -Wait -PassThru -ArgumentList "/S", "_?=$dir"
+          if (Test-Path "$dir\PathOfBuilding.exe") { throw "uninstall left the exe" }
+          if (Test-Path $key) { throw "uninstall left the registry key" }
+          Write-Host "Install, run and uninstall OK"
+
       - uses: actions/upload-artifact@v4
         with:
           name: PathOfBuilding-win64
           path: dist/PathOfBuilding-win64.zip
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PathOfBuilding-Setup-win64
+          path: dist/PathOfBuilding-Setup-win64.exe
           if-no-files-found: error
 
   release:
@@ -135,4 +159,5 @@ jobs:
           sed -e "s/@TAG@/$TAG/g" -e "s/@POB_VERSION@/${pob:-unknown}/g" packaging/release-notes.md > notes.md
           gh release create "$TAG" --draft --verify-tag --title "Path of Building native $TAG" \
             --notes-file notes.md \
-            artifacts/PathOfBuilding-macos-arm64.zip artifacts/PathOfBuilding-win64.zip
+            artifacts/PathOfBuilding-Setup-win64.exe artifacts/PathOfBuilding-win64.zip \
+            artifacts/PathOfBuilding-macos-arm64.zip
