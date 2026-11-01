@@ -52,8 +52,13 @@ the notes from `packaging/release-notes.md`. Review the draft on GitHub, then
 publish it.
 
 ```bash
+tools/update-pob.sh          # bundle PoB's latest release (commit if it changed)
 git tag v0.1.0 && git push origin v0.1.0
 ```
+
+The release job refuses to publish a draft that bundles an older PoB than PoB's
+latest release. Users' installed PoB content is never replaced by an older one
+either way; bundling the latest only spares new installs an update on first start.
 
 The macOS app is ad-hoc signed, not notarised. When it is downloaded from the
 internet, macOS blocks the first start: right-click the app and choose **Open**, or
