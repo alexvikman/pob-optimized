@@ -94,6 +94,12 @@ int App::Run(const AppOptions& options) {
     Log("Path of Building native host %s", POB_HOST_VERSION);
     Log("Bundle: %s", ToLuaPath(ctx.paths.bundle).c_str());
     Log("Data:   %s", ToLuaPath(ctx.paths.data).c_str());
+    if (ctx.paths.user) {
+        Log("User:   %s", ToLuaPath(*ctx.paths.user).c_str());
+    } else {
+        Log("User:   not found: %s (suggesting %s)", ctx.paths.userError.c_str(),
+            ToLuaPath(ctx.paths.userSuggestion).c_str());
+    }
 
     if (auto err = EnsureInstalled(ctx.paths)) {
         Log("Installation failed: %s", err->c_str());

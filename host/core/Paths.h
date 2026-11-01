@@ -15,7 +15,10 @@ struct HostPaths {
     fs::path data;
     // Documents folder; PoB appends "Path of Building/" itself.
     std::optional<fs::path> user;
+    // When `user` is missing: why, and the folder PoB's "choose a location"
+    // popup should start from (it fails if given nothing).
     std::string userError;
+    fs::path userSuggestion;
 };
 
 struct PathOverrides {

@@ -31,7 +31,7 @@ if(WIN32)
     # GUI subsystem (no console window) and the PoB icon.
     set_target_properties(pob_host PROPERTIES WIN32_EXECUTABLE TRUE)
     target_sources(pob_host PRIVATE "${PROJECT_SOURCE_DIR}/packaging/windows/PathOfBuilding.rc")
-    target_link_libraries(pob_host PRIVATE ws2_32)
+    target_link_libraries(pob_host PRIVATE ws2_32 shell32 ole32)
 endif()
 
 target_include_directories(pob_host PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

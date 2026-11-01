@@ -26,8 +26,10 @@ int l_GetRuntimePath(lua_State* L) { return PushPathResult(L, Ctx().runtimePath)
 int l_GetUserPath(lua_State* L) {
     auto& paths = Ctx().paths;
     if (!paths.user) {
+        // nil, then a path for PoB's "choose a location" popup to start from
+        // (Main.lua:782 indexes it, so it must not be nil), then the reason.
         lua_pushnil(L);
-        lua_pushnil(L);
+        PushPath(L, paths.userSuggestion);
         lua_pushstring(L, paths.userError.c_str());
         return 3;
     }
