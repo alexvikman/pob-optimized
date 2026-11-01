@@ -70,6 +70,13 @@ jobs:
       - name: Unit tests
         run: ctest --test-dir build --output-on-failure
 
+      - name: Check the exe needs no Visual C++ Redistributable
+        shell: pwsh
+        run: |
+          $deps = dumpbin /nologo /dependents build/host/PathOfBuilding.exe | Out-String
+          Write-Host $deps
+          if ($deps -match '(?i)vcruntime|msvcp') { throw "PathOfBuilding.exe depends on the VC++ runtime DLLs" }
+
       - name: Package
         shell: pwsh
         run: packaging/windows/package.ps1 -Build build -Out dist

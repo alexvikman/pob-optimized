@@ -12,6 +12,11 @@ if(APPLE)
     endif()
 endif()
 
+# Windows: link the C/C++ runtime statically (/MT) for every target, so the exe
+# runs on a clean Windows without the Visual C++ Redistributable. LuaJIT's
+# msvcbuild.bat static build already uses /MT.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
