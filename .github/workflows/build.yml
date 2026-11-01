@@ -89,3 +89,43 @@ jobs:
           name: PathOfBuilding-win64
           path: dist/PathOfBuilding-win64.zip
           if-no-files-found: error
+
+  release:
+    name: Draft release
+    # Tags like v0.1.0 create a draft release with both packages; publish it by hand.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches the host version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(sed -n 's/^ *VERSION \([0-9.]*\)$/\1/p' CMakeLists.txt | head -1)"
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::Tag $TAG does not match project version $version in CMakeLists.txt"
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Version of the bundled PoB, from the submodule commit (not checked out here).
+          pob_sha="$(git ls-tree HEAD PathOfBuilding | awk '{print $3}')"
+          pob="$(curl -fsSL "https://raw.githubusercontent.com/PathOfBuildingCommunity/PathOfBuilding/$pob_sha/manifest.xml" \
+            | sed -n 's/.*<Version number="\([^"]*\)".*/\1/p' | head -1)"
+          sed -e "s/@TAG@/$TAG/g" -e "s/@POB_VERSION@/${pob:-unknown}/g" packaging/release-notes.md > notes.md
+          gh release create "$TAG" --draft --verify-tag --title "Path of Building native $TAG" \
+            --notes-file notes.md \
+            artifacts/PathOfBuilding-macos-arm64.zip artifacts/PathOfBuilding-win64.zip

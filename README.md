@@ -40,6 +40,15 @@ GitHub Actions (`.github/workflows/build.yml`) builds both on every push, runs t
 unit tests and the `--check-boot` self test on the packaged app, and uploads the
 `.app` zip and the Windows zip as artifacts.
 
+**Releases:** pushing a tag `vX.Y.Z` that matches `VERSION` in `CMakeLists.txt`
+builds both platforms and creates a **draft** GitHub release with both packages and
+the notes from `packaging/release-notes.md`. Review the draft on GitHub, then
+publish it.
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
 The macOS app is ad-hoc signed, not notarised. When it is downloaded from the
 internet, macOS blocks the first start: right-click the app and choose **Open**, or
 clear the quarantine flag:

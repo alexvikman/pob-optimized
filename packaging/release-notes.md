@@ -1,0 +1,33 @@
+Native Path of Building for macOS (Apple Silicon) and Windows x64. It runs the
+**unmodified** [Path of Building Community](https://github.com/PathOfBuildingCommunity/PathOfBuilding)
+code in a lightweight native host. PoB @POB_VERSION@ is bundled, and the app
+updates itself from the official repository through PoB's own "Update" button.
+
+### macOS (Apple Silicon)
+
+1. Download `PathOfBuilding-macos-arm64.zip`, unzip it, and move
+   **Path of Building.app** to Applications.
+2. The app is ad-hoc signed, not notarised, so macOS blocks the first start.
+   Right-click the app, choose **Open**, then **Open** again. Or, in Terminal:
+   ```
+   xattr -dr com.apple.quarantine "/Applications/Path of Building.app"
+   ```
+
+PoB's files go to `~/Library/Application Support/PathOfBuilding-Native/`. Builds
+and settings go to `~/Documents/Path of Building/`.
+
+### Windows x64
+
+Download `PathOfBuilding-win64.zip`, unzip it anywhere, and run
+`PathOfBuilding.exe`. PoB's files go to `%APPDATA%\PathOfBuilding-Native\`. Builds
+go to `Documents\Path of Building\`, the same place as the official version.
+
+### Notes
+
+- Idle CPU use is close to zero: the UI only redraws when something changes.
+  Frame rates can be tuned in `host-settings.ini` in the data folder.
+- ⌘ works as Ctrl on macOS (⌘C, ⌘V, ⌘Z, ⌘S).
+- This is not an official release of Path of Building. Report problems with the
+  native host here, not to the PoB Community.
+
+Host @TAG@.
