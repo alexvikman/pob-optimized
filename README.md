@@ -1,0 +1,37 @@
+# Path of Building – native host
+
+A lightweight native host (C++20, SDL3, LuaJIT) that runs the **unmodified**
+[Path of Building](https://github.com/PathOfBuildingCommunity/PathOfBuilding) Lua
+code on macOS (Apple Silicon) and Windows x64.
+
+PoB itself lives in the `PathOfBuilding/` submodule and is never modified; everything
+platform specific is implemented in the host.
+
+## Building
+
+Requirements: CMake ≥ 3.24, a C++20 compiler (Apple Clang / Xcode Command Line Tools
+on macOS, MSVC on Windows) and git. All other dependencies are fetched at pinned
+revisions during configure.
+
+```bash
+git clone --recurse-submodules https://github.com/alexvikman/path-of-building-mac.git
+cmake -S . -B build
+cmake --build build -j8
+./build/host/PathOfBuilding --smoke
+```
+
+## Dependencies
+
+| Library | Version | Notes |
+|---|---|---|
+| SDL3 | 3.4.18 | window, input, clipboard, rendering (Metal / D3D) |
+| LuaJIT | v2.1 @ `ea9eb7e` | static, built with its own makefile |
+| zlib | 1.3.2 | |
+| stb | `003501f` | stb_image |
+| libcurl | system on macOS, 8.23.0 (Schannel) on Windows | |
+
+## Licenses
+
+Path of Building and SimpleGraphic are both MIT licensed (© David Gowor and the
+PoB Community). SimpleGraphic is used as a behavioural reference; any code adapted
+from it keeps its copyright notice.
