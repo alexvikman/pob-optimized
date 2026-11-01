@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(PathOfBuildingNative
-    VERSION 0.1.0
+    VERSION 0.1.1
     DESCRIPTION "Native host for Path of Building (macOS, Windows)"
     LANGUAGES C CXX)
 
