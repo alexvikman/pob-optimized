@@ -27,10 +27,10 @@ struct Hasher {
 } // namespace
 
 void DrawList::BeginFrame(int screenW, int screenH) {
-    prevLayers_.swap(layers_);
-    prevViewports_.swap(viewports_);
-    prevScreenW_ = screenW_;
-    prevScreenH_ = screenH_;
+    prev_.layers.swap(layers_);
+    prev_.viewports.swap(viewports_);
+    prev_.screenW = screenW_;
+    prev_.screenH = screenH_;
     layers_.clear();
     viewports_.clear();
     screenW_ = screenW;
@@ -107,17 +107,24 @@ uint64_t DrawList::Hash() const {
     return h.h;
 }
 
-float DrawList::MotionSincePrevious() const {
-    if (screenW_ != prevScreenW_ || screenH_ != prevScreenH_ || layers_.size() != prevLayers_.size() ||
-        viewports_.size() != prevViewports_.size()) {
+void DrawList::CopyTo(Snapshot& out) const {
+    out.layers = layers_;
+    out.viewports = viewports_;
+    out.screenW = screenW_;
+    out.screenH = screenH_;
+}
+
+float DrawList::MotionSince(const Snapshot& other) const {
+    if (screenW_ != other.screenW || screenH_ != other.screenH || layers_.size() != other.layers.size() ||
+        viewports_.size() != other.viewports.size()) {
         return kAnyChange;
     }
     for (size_t i = 0; i < viewports_.size(); ++i) {
-        const Viewport &a = viewports_[i], &b = prevViewports_[i];
+        const Viewport &a = viewports_[i], &b = other.viewports[i];
         if (a.x != b.x || a.y != b.y || a.w != b.w || a.h != b.h) return kAnyChange;
     }
     float motion = 0;
-    for (auto cur = layers_.begin(), prev = prevLayers_.begin(); cur != layers_.end(); ++cur, ++prev) {
+    for (auto cur = layers_.begin(), prev = other.layers.begin(); cur != layers_.end(); ++cur, ++prev) {
         if (cur->first != prev->first || cur->second.size() != prev->second.size()) return kAnyChange;
         for (size_t i = 0; i < cur->second.size(); ++i) {
             const Quad &a = cur->second[i], &b = prev->second[i];

@@ -271,10 +271,16 @@ void App::RunFrame() {
     bool changed = hash != lastHash_;
     const auto& cfg = scheduler_->Config();
     bool skipIdentical = cfg.skipIdenticalFrames && cfg.mode == LoopConfig::Mode::Adaptive;
-    bool render = forceRender_ || !lastFrameComplete_ || texGen != lastTextureGen_ || hash != lastPresentedHash_ ||
-                  !skipIdentical;
+    bool render = forceRender_ || !lastFrameComplete_ || texGen != lastTextureGen_ || !skipIdentical;
+    // A slow animation (the rotating jewel rings) changes every frame while the
+    // mouse moves; until it has moved half an animation step from what is on
+    // screen, the difference is not worth a GPU frame.
+    if (!render && hash != lastPresentedHash_) {
+        render = !(ctx.draw.MotionSince(presented_) < cfg.animationStepPx / 2);
+    }
     if (render) {
         lastFrameComplete_ = draw_->DrawFrame(ctx.draw, ctx.clearColor);
+        ctx.draw.CopyTo(presented_);
         lastPresentedHash_ = hash;
         lastTextureGen_ = texGen;
         forceRender_ = false;

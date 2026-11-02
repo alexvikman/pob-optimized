@@ -45,6 +45,12 @@ so that each one moves about `animationStepPx`. Anything else that changes
 (quads added or removed, colours, textures) counts as fast and gets `maxFps`, as
 do toasts and scrolling, which move several pixels per frame.
 
+While the mouse moves, frames run at full rate for responsiveness, and the rings
+would make every one of them differ from the last. The host therefore also keeps
+a copy of the frame on screen and skips the GPU while the new frame differs from
+it only by positions that moved less than half of `animationStepPx`. Hover
+highlights and tooltips are real changes and are drawn at once.
+
 **Live resize.** On macOS, dragging the window edge runs a modal loop. The host
 redraws from an SDL event watch on the live-resize expose events, so the content
 follows the window.
@@ -135,6 +141,14 @@ of an imported build that has a Lethal Pride jewel allocated (the rings rotate).
 
 On a display without Retina scaling the same rotation is half as many pixels, so
 the rate drops to around 3–4/s; it never goes below `idleFps`.
+
+Moving the mouse across the same tree for 10 s (`OnFrame` runs at ~50/s either
+way):
+
+| Version | GPU frames per 5 s |
+|---|---|
+| Every changed frame rendered (`animationStepPx = 0`) | ~260 (all) |
+| Sub-pixel ring movement skipped (default) | ~48 |
 
 ### Not measured yet
 

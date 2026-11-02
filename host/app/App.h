@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Paths.h"
+#include "render/DrawList.h"
 
 #include <SDL3/SDL.h>
 
@@ -67,6 +68,7 @@ private:
     bool forceRender_ = true;
     uint64_t lastHash_ = 0;
     uint64_t lastPresentedHash_ = 0;
+    DrawList::Snapshot presented_; // the frame on screen
     uint64_t lastTextureGen_ = 0;
     // --eval without --check-boot: run once PoB has settled.
     std::string pendingEval_;

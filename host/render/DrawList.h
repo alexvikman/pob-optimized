@@ -53,26 +53,32 @@ public:
 
     using LayerKey = std::pair<int, int>;
     const std::map<LayerKey, std::vector<Quad>>& Layers() const { return layers_; }
+
+    // A copy of a recorded frame, to compare later frames against.
+    struct Snapshot {
+        std::map<LayerKey, std::vector<Quad>> layers;
+        std::vector<Viewport> viewports;
+        int screenW = 0, screenH = 0;
+    };
+    void CopyTo(Snapshot& out) const;
     const std::vector<Viewport>& Viewports() const { return viewports_; }
     size_t QuadCount() const;
 
     // Digest of everything that affects the rendered image.
     uint64_t Hash() const;
 
-    // How far this frame moved compared with the previous one, in pixels: the
+    // How far this frame moved compared with another one, in pixels: the
     // largest vertex displacement when only quad positions changed, or infinity
     // when anything else differs (quads added or removed, textures, colours,
-    // viewports). Lets the scheduler tell a slow animation from a fast one.
-    float MotionSincePrevious() const;
+    // viewports). Tells slow animations from fast ones and real changes.
+    float MotionSince(const Snapshot& other) const;
+    float MotionSincePrevious() const { return MotionSince(prev_); }
     static constexpr float kAnyChange = std::numeric_limits<float>::infinity();
 
 private:
     std::map<LayerKey, std::vector<Quad>> layers_;
     std::vector<Viewport> viewports_;
-    // The previous frame, kept for MotionSincePrevious.
-    std::map<LayerKey, std::vector<Quad>> prevLayers_;
-    std::vector<Viewport> prevViewports_;
-    int prevScreenW_ = 0, prevScreenH_ = 0;
+    Snapshot prev_; // the previous frame, for MotionSincePrevious
     std::vector<Quad>* current_ = nullptr;
     int layer_ = 0, subLayer_ = 0;
     uint32_t viewport_ = 0;
