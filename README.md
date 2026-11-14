@@ -1,143 +1,88 @@
 # Path of Building – native port
 
-A native port of [Path of Building](https://github.com/PathOfBuildingCommunity/PathOfBuilding)
-to macOS (Apple Silicon) and Windows x64. A lightweight host (C++20, SDL3, LuaJIT)
-runs the **unmodified** PoB Lua code.
+A native port of [Path of Building](https://github.com/PathOfBuildingCommunity/PathOfBuilding),
+the build planner for Path of Exile, to macOS and Windows. It runs Path of Building
+Community's own code, unchanged, so the calculations, the tree, the items and the
+imports are the same, and it stays current through PoB's own updates. The app around
+it is built for each system: it follows your Mac's keyboard shortcuts, and uses close
+to no CPU or GPU while you are not using it.
 
-PoB itself lives in the `PathOfBuilding/` submodule and is never modified; everything
-platform specific is implemented in the host.
+Status: early, but in use. This is not an official release of Path of Building.
 
-## Building
+## Download
 
-Requirements: CMake ≥ 3.24, a C++20 compiler (Apple Clang / Xcode Command Line Tools
-on macOS, MSVC on Windows) and git. All other dependencies are fetched at pinned
-revisions during configure.
+[Download the latest release](https://github.com/alexvikman/pob-optimized/releases/latest).
 
-```bash
-git clone --recurse-submodules https://github.com/alexvikman/pob-optimized.git
-cmake -S . -B build
-cmake --build build -j8
-./build/host/PathOfBuilding
-```
+**macOS** (Apple Silicon, macOS 13 or later): download `PathOfBuilding-macos-arm64.zip`,
+unzip it and move **Path of Building** to Applications. The app is not notarised by
+Apple, so macOS blocks the first start: right-click the app, choose **Open**, then
+**Open** again. After that it starts as usual.
 
-On first start the host copies PoB from the `PathOfBuilding/` submodule into its data
-directory (`~/Library/Application Support/PathOfBuilding-Native/` on macOS) and runs
-it from there.
+**Windows** (64-bit): download and run **`PathOfBuilding-Setup-win64.exe`**. It installs
+for your user only, without administrator rights, adds Start menu and desktop
+shortcuts, and can be removed under Settings › Apps. It installs next to an official
+Path of Building without affecting it. To run it without installing, extract
+`PathOfBuilding-win64.zip` (right-click › Extract All) and start `PathOfBuilding.exe`
+in the extracted folder.
 
-### Packaging
+## Getting started
 
-```bash
-# macOS: dist/Path of Building.app, ad-hoc signed
-packaging/macos/make-app.sh build dist
-```
+Start the app and use it as you would use Path of Building: create a build, or import
+one from a link or from your Path of Exile account under **Import/Export Build**.
 
-```powershell
-# Windows (from a Visual Studio developer prompt): dist/PathOfBuilding-win64.zip,
-# plus dist/PathOfBuilding-Setup-win64.exe when NSIS is installed
-packaging/windows/package.ps1 -Build build -Out dist
-```
+Your builds are kept in `Documents/Path of Building/`, the same folder the official
+Path of Building uses. If you have both installed, both see the same builds.
 
-The Windows setup (`packaging/windows/installer.nsi`) installs per user without
-administrator rights, like the official PoB setup. It adds Start menu and desktop
-shortcuts and an uninstaller under Settings › Apps.
+## Updates
 
-GitHub Actions (`.github/workflows/build.yml`) builds both on every push, runs the
-unit tests and the `--check-boot` self test on the packaged app, installs, runs and
-uninstalls the Windows setup, and uploads the `.app` zip, the Windows setup and the
-Windows zip as artifacts.
+There are two kinds of update, and both ask before they do anything:
 
-**Releases:** pushing a tag `vX.Y.Z` that matches `VERSION` in `CMakeLists.txt`
-builds both platforms and creates a **draft** GitHub release with both packages and
-the notes from `packaging/release-notes.md`. Review the draft on GitHub, then
-publish it.
+- **Path of Building itself** (skills, gems, uniques, the tree, calculations) updates
+  from inside the app, as it always has: when PoB says an update is available, click
+  **Update**. You don't need a new release of this app for that.
+- **This app** checks once a day whether a newer release is out, and shows a small
+  notice in the bottom-right corner with a **Download** button. **×** hides it until
+  the next version. Installing a new release keeps your builds and settings, and never
+  replaces a newer Path of Building with an older one.
 
-```bash
-tools/update-pob.sh          # bundle PoB's latest release (commit if it changed)
-git tag v0.1.0 && git push origin v0.1.0
-```
+## Good to know
 
-The release job refuses to publish a draft that bundles an older PoB than PoB's
-latest release. Users' installed PoB content is never replaced by an older one
-either way; bundling the latest only spares new installs an update on first start.
+- On macOS, **⌘** works where Path of Building uses Ctrl: ⌘C, ⌘V, ⌘Z, ⌘S and so on.
+- The app only redraws when something on screen changes. Left alone it uses close to
+  no CPU or GPU, and next to nothing while it is in the background.
+- Signing in to your Path of Exile account shows a red warning on pathofexile.com
+  that the request can't be verified. Path of Exile shows that for every desktop app
+  that signs in this way, the official Path of Building too. If you started the sign-in
+  from the app yourself, **Authorize** is safe.
 
-The macOS app is ad-hoc signed, not notarised. When it is downloaded from the
-internet, macOS blocks the first start: right-click the app and choose **Open**, or
-clear the quarantine flag:
+## Settings and files
 
-```bash
-xattr -dr com.apple.quarantine "/Applications/Path of Building.app"
-```
+Path of Building's own settings are under **Options** in the app. A few settings for
+the app around it are in `host-settings.ini`, with comments, in the app's data folder:
 
-### Development options
+- macOS: `~/Library/Application Support/PathOfBuilding-Native/`
+- Windows: `%APPDATA%\PathOfBuilding-Native\`
 
-```bash
-# Use throwaway data and user directories instead of the real ones
-./build/host/PathOfBuilding --data build/pobdata --user build/pobuser
+There you can change the frame rate cap and how the app paces itself while idle, or
+turn off the daily check for new releases (`checkForAppUpdates = false`). Delete the
+file to get the defaults back. The same folder has Path of Building's files and
+`host.log`, which is useful to include when you report a problem.
 
-# Self test: boot to the main menu, run a subscript round trip and a Restart(),
-# exit 0 on success. --eval runs a Lua file inside PoB after boot.
-./build/host/PathOfBuilding --data build/pobdata --check-boot [--eval probe.lua]
+When you uninstall on Windows, you can choose to remove this folder too. Your builds
+in Documents are never removed.
 
-# Scripted mouse/keyboard input after boot (see host/app/InputScript.h)
-./build/host/PathOfBuilding --data build/pobdata --check-boot --input steps.txt
+## Problems
 
-# ...and save a PNG of the window after boot/eval/input; --size sets the window size
-./build/host/PathOfBuilding --data build/pobdata --check-boot --screenshot shot.png --size 1440x900
+Report problems with this app in this repository's
+[issues](https://github.com/alexvikman/pob-optimized/issues), not to the Path of
+Building Community, and include `host.log` if you can.
 
-# Frame rate and timings in the log every 5 s
-POB_HOST_STATS=1 ./build/host/PathOfBuilding --data build/pobdata
+## For developers
 
-# Unit tests
-ctest --test-dir build --output-on-failure
-```
+Building from source, the self tests, how the app runs Path of Building, and how
+releases are made: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-The log is written to `host.log` in the data directory.
+## License
 
-### Power use
-
-The host only redraws when something happens. With the passive tree idle it uses
-about 0.8 % CPU on macOS, against 52 % when redrawing continuously like the
-original. On Windows (measured in a VM) it uses 5.3 % focused and 0 % in the
-background, against 83 %. The
-rates can be set in `host-settings.ini`; see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
-
-### Updates
-
-There are two kinds of update:
-
-- **Path of Building's content** (skills, gems, uniques, tree, calculations)
-  updates from inside the app through PoB's own "Update" button.
-- **This app** checks once a day for a newer release in this repository and shows
-  a small notice with a **Download** button. **×** hides it for that version.
-  Turn it off with `checkForAppUpdates = false` in `host-settings.ini`.
-
-#### PoB content
-
-PoB updates itself from the official repository (`master` branch) through its own
-"Update" button, as on Windows. The host installs PoB with the platform
-`native-macos`/`native-win64` and normalises PoB's manifest so that no Windows
-binaries are downloaded. See docs/API.md §8. To try it with an older bundle:
-
-```bash
-git clone --depth 1 --branch v2.66.0 https://github.com/PathOfBuildingCommunity/PathOfBuilding.git build/pob-old
-./build/host/PathOfBuilding --bundle build/pob-old --data build/upd-data --user build/upd-user
-```
-
-## Dependencies
-
-| Library | Version | Notes |
-|---|---|---|
-| SDL3 | 3.4.18 | window, input, clipboard, rendering (Metal / D3D) |
-| LuaJIT | v2.1 @ `ea9eb7e` | static, built with its own makefile |
-| zlib | 1.3.2 | |
-| stb | `003501f` | stb_image |
-| libcurl | system on macOS, 8.23.0 (Schannel) on Windows | |
-| libwebp | 1.6.0 | decoder only; PoB ships WebP tree art |
-| Lua-cURLv3, luautf8, LuaSocket | SimpleGraphic's pinned revisions | `lcurl`, `lua-utf8`, `socket.core` Lua modules |
-
-## Licenses
-
-The native port is MIT licensed; see [LICENSE](LICENSE). Path of Building and
-SimpleGraphic are also MIT licensed (© David Gowor and the PoB Community). Code
-adapted from SimpleGraphic keeps its notice; see
-[LICENSE-THIRD-PARTY.md](LICENSE-THIRD-PARTY.md).
+MIT; see [LICENSE](LICENSE). Path of Building and SimpleGraphic are also MIT licensed
+(© David Gowor and the PoB Community); see [LICENSE-THIRD-PARTY.md](LICENSE-THIRD-PARTY.md).
