@@ -1,0 +1,8 @@
+# The workflow pins every action to a commit. Dependabot opens a pull request when
+# a newer release of one exists, so the pins do not go stale (and miss fixes).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

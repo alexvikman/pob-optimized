@@ -1,6 +1,10 @@
 # Third-party dependencies, pinned to exact revisions so builds are reproducible
 # on every platform. Everything is fetched and built from source except libcurl
 # on macOS, where the system library (part of the SDK) is used.
+#
+# Every GIT_TAG is a full commit hash, with the release it belongs to in a
+# comment. A tag name can be moved to other code upstream; a hash cannot, so a
+# release is always built from the sources that were reviewed and tested.
 
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
@@ -14,7 +18,7 @@ set(SDL_TESTS OFF CACHE BOOL "" FORCE)
 set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(SDL3
     GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-    GIT_TAG        release-3.4.18
+    GIT_TAG        829a65d769d935c4852f8159e964312c0957260a # release-3.4.18
     GIT_SHALLOW    TRUE)
 
 # --- zlib -------------------------------------------------------------------
@@ -24,7 +28,7 @@ set(ZLIB_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(ZLIB_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(zlib
     GIT_REPOSITORY https://github.com/madler/zlib.git
-    GIT_TAG        v1.3.2
+    GIT_TAG        da607da739fa6047df13e66a2af6b8bec7c2a498 # v1.3.2
     GIT_SHALLOW    TRUE)
 
 # --- stb (header only) ------------------------------------------------------
@@ -46,7 +50,7 @@ set(WEBP_BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
 set(WEBP_BUILD_FUZZTEST OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(libwebp
     GIT_REPOSITORY https://github.com/webmproject/libwebp.git
-    GIT_TAG        v1.6.0
+    GIT_TAG        4fa21912338357f89e4fd51cf2368325b59e9bd9 # v1.6.0
     GIT_SHALLOW    TRUE)
 
 FetchContent_MakeAvailable(SDL3 zlib stb libwebp)
@@ -80,7 +84,7 @@ else()
     set(CURL_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
     FetchContent_Declare(curl
         GIT_REPOSITORY https://github.com/curl/curl.git
-        GIT_TAG        curl-8_23_0
+        GIT_TAG        3163ec065643ba20709f190111f42c3e1fe95273 # curl-8_23_0
         GIT_SHALLOW    TRUE)
     FetchContent_MakeAvailable(curl)
     set(POB_CURL_TARGET CURL::libcurl)

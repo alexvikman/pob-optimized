@@ -7,6 +7,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Every action is pinned to a commit (the release it belongs to is in the comment):
+# these jobs build the files users download, and a tag such as @v4 can be moved to
+# other code. .github/dependabot.yml proposes updates.
 permissions:
   contents: read
 
@@ -15,9 +18,10 @@ jobs:
     name: macOS arm64
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: true
+          persist-credentials: false
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -40,7 +44,7 @@ jobs:
       - name: Zip
         run: cd dist && ditto -c -k --keepParent "Path of Building.app" PathOfBuilding-macos-arm64.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: PathOfBuilding-macos-arm64
           path: dist/PathOfBuilding-macos-arm64.zip
@@ -50,16 +54,17 @@ jobs:
     name: Windows x64
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: true
+          persist-credentials: false
 
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
         with:
           arch: x64
 
       - name: Install Ninja
-        run: pip install ninja
+        run: pip install ninja==1.13.2
 
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -109,13 +114,13 @@ jobs:
           if (Test-Path $key) { throw "uninstall left the registry key" }
           Write-Host "Install, run and uninstall OK"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: PathOfBuilding-win64
           path: dist/PathOfBuilding-win64.zip
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: PathOfBuilding-Setup-win64
           path: dist/PathOfBuilding-Setup-win64.exe
@@ -129,8 +134,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # For the build attestation below.
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Check tag matches the host version
         env:
@@ -158,10 +168,26 @@ jobs:
           fi
           echo "Bundled PoB is $latest"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: artifacts
           merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd artifacts
+          sha256sum PathOfBuilding-Setup-win64.exe PathOfBuilding-win64.zip PathOfBuilding-macos-arm64.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # Signed statement that these exact files were built by this workflow from the
+      # tagged commit; check one with `gh attestation verify <file> --repo <this repo>`.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-path: |
+            artifacts/PathOfBuilding-Setup-win64.exe
+            artifacts/PathOfBuilding-win64.zip
+            artifacts/PathOfBuilding-macos-arm64.zip
 
       - name: Create draft release
         env:
@@ -172,8 +198,10 @@ jobs:
           pob_sha="$(git ls-tree HEAD PathOfBuilding | awk '{print $3}')"
           pob="$(curl -fsSL "https://raw.githubusercontent.com/PathOfBuildingCommunity/PathOfBuilding/$pob_sha/manifest.xml" \
             | sed -n 's/.*<Version number="\([^"]*\)".*/\1/p' | head -1)"
-          sed -e "s/@TAG@/$TAG/g" -e "s/@POB_VERSION@/${pob:-unknown}/g" packaging/release-notes.md > notes.md
+          # The version comes from the network and goes into a sed expression.
+          case "$pob" in ''|*[!0-9.]*) pob=unknown ;; esac
+          sed -e "s/@TAG@/$TAG/g" -e "s/@POB_VERSION@/$pob/g" packaging/release-notes.md > notes.md
           gh release create "$TAG" --draft --verify-tag --title "Path of Building native $TAG" \
             --notes-file notes.md \
             artifacts/PathOfBuilding-Setup-win64.exe artifacts/PathOfBuilding-win64.zip \
-            artifacts/PathOfBuilding-macos-arm64.zip
+            artifacts/PathOfBuilding-macos-arm64.zip artifacts/SHA256SUMS.txt

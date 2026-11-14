@@ -55,13 +55,25 @@ target_compile_definitions(pob_host PRIVATE
     POB_HOST_VERSION="${PROJECT_VERSION}"
     # GitHub repository whose releases the app checks for host updates.
     POB_HOST_REPO="alexvikman/pob-optimized"
-    # Development fallback when no bundled copy sits next to the executable.
-    POB_DEV_BUNDLE_DIR="${PROJECT_SOURCE_DIR}/PathOfBuilding")
+    # Development fallback when no bundled copy sits next to the executable: this
+    # source tree's submodule. Left out of Release builds, the ones that ship. An
+    # absolute path from the build machine must not be looked up on a user's
+    # machine, where someone else may be able to create it and so supply the code
+    # the app runs.
+    "$<$<NOT:$<CONFIG:Release,MinSizeRel>>:POB_DEV_BUNDLE_DIR=\"${PROJECT_SOURCE_DIR}/PathOfBuilding\">")
 
 if(MSVC)
     target_compile_options(pob_host PRIVATE /W4 /utf-8)
+    # Resolve the exe's own imports from System32 only, so a DLL planted next to
+    # a portable copy (version.dll and the like) is not loaded at start.
+    target_link_options(pob_host PRIVATE /DEPENDENTLOADFLAG:0x800)
 else()
-    target_compile_options(pob_host PRIVATE -Wall -Wextra)
+    target_compile_options(pob_host PRIVATE -Wall -Wextra -fstack-protector-strong)
+endif()
+if(APPLE)
+    # Bounds-checked std::vector, std::string and string_view access in the host's
+    # own code: an out-of-range index stops the app instead of corrupting memory.
+    target_compile_definitions(pob_host PRIVATE _LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST)
 endif()
 
 # Unit tests (run with ctest).

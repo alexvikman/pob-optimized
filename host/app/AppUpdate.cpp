@@ -10,6 +10,7 @@
 #include <SDL3/SDL.h>
 #include <curl/curl.h>
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 
@@ -20,21 +21,44 @@ namespace {
 constexpr auto kCheckInterval = std::chrono::hours(24);
 constexpr const char* kLatestApi = "https://api.github.com/repos/" POB_HOST_REPO "/releases/latest";
 
+// The release JSON is a few kilobytes; a response far beyond that is not it.
+constexpr size_t kMaxResponse = 1 << 20;
+
 size_t AppendBody(char* data, size_t size, size_t n, void* out) {
-    static_cast<std::string*>(out)->append(data, size * n);
+    auto* body = static_cast<std::string*>(out);
+    if (body->size() + size * n > kMaxResponse) return 0; // aborts the transfer
+    body->append(data, size * n);
     return size * n;
 }
 
-// Pulls one string field out of GitHub's JSON without a JSON library; the fields
-// read here (tag_name, html_url) never contain escaped quotes.
+// Pulls one string field out of GitHub's JSON without a JSON library; the field
+// read here (tag_name) never contains escaped quotes.
 std::string JsonString(const std::string& json, const std::string& key) {
     std::string needle = "\"" + key + "\"";
     size_t k = json.find(needle);
     if (k == std::string::npos) return {};
-    size_t q1 = json.find('"', json.find(':', k + needle.size()) + 1);
+    size_t colon = json.find(':', k + needle.size());
+    if (colon == std::string::npos) return {};
+    size_t q1 = json.find('"', colon + 1);
+    if (q1 == std::string::npos) return {};
     size_t q2 = json.find('"', q1 + 1);
-    if (q1 == std::string::npos || q2 == std::string::npos) return {};
+    if (q2 == std::string::npos) return {};
     return json.substr(q1 + 1, q2 - q1 - 1);
+}
+
+// The tag is the only thing taken from the response. It is drawn in the notice,
+// written to the state file and put in the URL that "Download" opens, so only
+// the form the release workflow produces ("v1.2.3") is accepted.
+bool IsReleaseTag(std::string_view tag) {
+    if (tag.starts_with('v')) tag.remove_prefix(1);
+    if (tag.empty() || tag.size() > 32) return false;
+    return std::all_of(tag.begin(), tag.end(), [](char c) { return (c >= '0' && c <= '9') || c == '.'; });
+}
+
+// The release page is built here, not read from the response, so "Download"
+// only ever opens this repository's releases.
+std::string ReleaseUrl(const std::string& tag) {
+    return "https://github.com/" POB_HOST_REPO "/releases/tag/" + tag;
 }
 
 int64_t ToEpoch(std::chrono::system_clock::time_point t) {
@@ -68,7 +92,7 @@ void AppUpdate::LoadState() {
         std::string key = line.substr(0, eq), val = line.substr(eq + 1);
         if (key == "lastAppUpdateCheck") {
             lastCheck_ = std::chrono::system_clock::time_point(std::chrono::seconds(std::atoll(val.c_str())));
-        } else if (key == "dismissedAppVersion") {
+        } else if (key == "dismissedAppVersion" && IsReleaseTag(val)) {
             dismissedVersion_ = val;
         }
     }
@@ -102,7 +126,17 @@ void AppUpdate::CheckThread() {
         curl_easy_setopt(curl, CURLOPT_URL, kLatestApi);
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt(curl, CURLOPT_USERAGENT, "PathOfBuilding-Native/" POB_HOST_VERSION);
+        // GitHub redirects the API of a renamed repository; follow that, over
+        // HTTPS only. (libcurl before 7.85 lacks these options and keeps its
+        // default, which allows a redirect to plain HTTP.)
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 3L);
+#if LIBCURL_VERSION_NUM >= 0x075500
+        curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
+        curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "https");
+#endif
+        // This runs on a background thread; no signals for timeouts.
+        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 20L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, AppendBody);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
@@ -113,13 +147,13 @@ void AppUpdate::CheckThread() {
         curl_easy_cleanup(curl);
     }
     std::string tag = status == 200 ? JsonString(body, "tag_name") : "";
-    std::string url = status == 200 ? JsonString(body, "html_url") : "";
+    if (!IsReleaseTag(tag)) tag.clear();
     {
         std::lock_guard lock(mutex_);
         checking_ = false;
         if (!tag.empty() && CompareVersions(tag, POB_HOST_VERSION) > 0 && tag != dismissedVersion_) {
             latestVersion_ = tag;
-            releaseUrl_ = url;
+            releaseUrl_ = ReleaseUrl(tag);
         }
     }
     Log("App update check: latest %s (this is %s)", tag.empty() ? "unknown" : tag.c_str(), POB_HOST_VERSION);

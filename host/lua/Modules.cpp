@@ -27,6 +27,11 @@ namespace {
 constexpr const char* kZipMeta = "pob.lzip.zip";
 constexpr const char* kZipFileMeta = "pob.lzip.file";
 
+// Largest file extracted into memory. The archives come from the network (PoB's
+// updater), and the size is read from the archive's own header, so without a
+// limit a corrupt or hostile archive makes the host allocate up to 4 GiB.
+constexpr uLong kMaxZipEntrySize = 512ul << 20;
+
 struct LZip {
     unzFile uf = nullptr;
     std::vector<std::string> names;
@@ -63,7 +68,8 @@ int l_zip_open(lua_State* L) {
             char name[1024];
             unz_file_info info;
             if (unzGetCurrentFileInfo(uf, &info, name, sizeof(name), nullptr, 0, nullptr, 0) == UNZ_OK) {
-                z->names.emplace_back(name);
+                // minizip does not terminate a name that fills the buffer.
+                z->names.emplace_back(name, std::min<size_t>(info.size_filename, sizeof(name)));
                 z->sizes.push_back(info.uncompressed_size);
             }
         } while (unzGoToNextFile(uf) == UNZ_OK);
@@ -111,9 +117,11 @@ int l_zip_openfile(lua_State* L) {
     auto* z = CheckZip(L, true);
     const char* name = luaL_checkstring(L, 2);
     // 2 = case-insensitive, matching the Windows original.
-    if (unzLocateFile(z->uf, name, 2) != UNZ_OK || unzOpenCurrentFile(z->uf) != UNZ_OK) return 0;
+    if (unzLocateFile(z->uf, name, 2) != UNZ_OK) return 0;
     unz_file_info info;
-    unzGetCurrentFileInfo(z->uf, &info, nullptr, 0, nullptr, 0, nullptr, 0);
+    if (unzGetCurrentFileInfo(z->uf, &info, nullptr, 0, nullptr, 0, nullptr, 0) != UNZ_OK) return 0;
+    if (info.uncompressed_size > kMaxZipEntrySize) return 0;
+    if (unzOpenCurrentFile(z->uf) != UNZ_OK) return 0;
     std::string data(info.uncompressed_size, '\0');
     int got = data.empty() ? 0 : unzReadCurrentFile(z->uf, data.data(), static_cast<unsigned>(data.size()));
     unzCloseCurrentFile(z->uf);

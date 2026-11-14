@@ -23,6 +23,11 @@ On first start the host copies PoB from the `PathOfBuilding/` submodule into its
 directory (`~/Library/Application Support/PathOfBuilding-Native/` on macOS) and runs
 it from there.
 
+Only development builds fall back to the submodule like this. A Release build
+(`-DCMAKE_BUILD_TYPE=Release`, what CI ships) looks for PoB next to the executable and
+nowhere else, so that a path from the build machine is never trusted on a user's
+machine. To run one straight from the build directory, pass `--bundle PathOfBuilding`.
+
 ## Development options
 
 ```bash
@@ -97,7 +102,10 @@ The host's own update check (a daily look at this repository's latest release) i
 | Lua-cURLv3, luautf8, LuaSocket | SimpleGraphic's pinned revisions | `lcurl`, `lua-utf8`, `socket.core` Lua modules |
 
 All are pinned in `cmake/Dependencies.cmake`, `cmake/LuaJIT.cmake` and
-`cmake/LuaModules.cmake`.
+`cmake/LuaModules.cmake`, each to a full commit hash: a tag name can be moved to other
+code upstream, a hash cannot. To move to a new release, change the hash and the
+release named in the comment beside it (`git ls-remote <repo> 'refs/tags/<tag>*'`
+prints the hash; for an annotated tag it is the `^{}` line).
 
 ## Packages and releases
 

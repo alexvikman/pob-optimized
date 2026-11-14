@@ -30,6 +30,16 @@ inside the zip. PoB's files go to `%APPDATA%\PathOfBuilding-Native\`. Builds and
 settings go to `Documents\Path of Building\`, the same place the official version
 uses, so both see the same builds.
 
+### Verifying a download
+
+`SHA256SUMS.txt` lists the checksums of the files above. Each file also has a build
+attestation, which confirms it was built from this tag by this repository's GitHub
+Actions workflow. With the [GitHub CLI](https://cli.github.com):
+
+```
+gh attestation verify PathOfBuilding-macos-arm64.zip --repo alexvikman/pob-optimized
+```
+
 ### Notes
 
 - Idle CPU use is close to zero: the UI only redraws when something changes.

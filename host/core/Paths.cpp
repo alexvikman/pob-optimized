@@ -87,7 +87,11 @@ std::optional<std::string> ResolvePaths(const PathOverrides& overrides, HostPath
         if (out.bundle.empty()) out.bundle = FromUtf8(POB_DEV_BUNDLE_DIR);
 #endif
     }
-    if (out.bundle.empty() || !LooksLikeBundle(out.bundle)) {
+    if (out.bundle.empty()) {
+        return "Path of Building files not found next to the executable (expected a PathOfBuilding folder with "
+               "manifest.xml and src/Launch.lua; --bundle DIR names another one)";
+    }
+    if (!LooksLikeBundle(out.bundle)) {
         return "Path of Building files not found (looked for manifest.xml and src/Launch.lua in '" +
                ToLuaPath(out.bundle) + "')";
     }
