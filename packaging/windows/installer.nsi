@@ -39,7 +39,7 @@ VIAddVersionKey "ProductName" "${APP_NAME}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "FileDescription" "${APP_NAME} setup"
-VIAddVersionKey "LegalCopyright" "Native host (c) 2026 Alexander Vikman; Path of Building (c) PoB Community; MIT licence"
+VIAddVersionKey "LegalCopyright" "Native port (c) 2026 Alexander Vikman; Path of Building (c) PoB Community; MIT licence"
 
 !include "MUI2.nsh"
 

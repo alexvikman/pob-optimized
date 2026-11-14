@@ -1,8 +1,8 @@
-# Path of Building – native host
+# Path of Building – native port
 
-A lightweight native host (C++20, SDL3, LuaJIT) that runs the **unmodified**
-[Path of Building](https://github.com/PathOfBuildingCommunity/PathOfBuilding) Lua
-code on macOS (Apple Silicon) and Windows x64.
+A native port of [Path of Building](https://github.com/PathOfBuildingCommunity/PathOfBuilding)
+to macOS (Apple Silicon) and Windows x64. A lightweight host (C++20, SDL3, LuaJIT)
+runs the **unmodified** PoB Lua code.
 
 PoB itself lives in the `PathOfBuilding/` submodule and is never modified; everything
 platform specific is implemented in the host.
@@ -137,7 +137,7 @@ git clone --depth 1 --branch v2.66.0 https://github.com/PathOfBuildingCommunity/
 
 ## Licenses
 
-The native host is MIT licensed; see [LICENSE](LICENSE). Path of Building and
+The native port is MIT licensed; see [LICENSE](LICENSE). Path of Building and
 SimpleGraphic are also MIT licensed (© David Gowor and the PoB Community). Code
 adapted from SimpleGraphic keeps its notice; see
 [LICENSE-THIRD-PARTY.md](LICENSE-THIRD-PARTY.md).

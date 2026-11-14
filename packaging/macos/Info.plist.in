@@ -29,6 +29,6 @@
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
-    <string>Native host © 2026 Alexander Vikman. Path of Building © PoB Community. Both MIT licence.</string>
+    <string>Native port © 2026 Alexander Vikman. Path of Building © PoB Community. Both MIT licence.</string>
 </dict>
 </plist>

@@ -1,6 +1,6 @@
-Native Path of Building for macOS (Apple Silicon) and Windows x64. It runs the
-**unmodified** [Path of Building Community](https://github.com/PathOfBuildingCommunity/PathOfBuilding)
-code in a lightweight native host. PoB @POB_VERSION@ is bundled, and the app
+A native port of Path of Building to macOS (Apple Silicon) and Windows x64. It
+runs the **unmodified** [Path of Building Community](https://github.com/PathOfBuildingCommunity/PathOfBuilding)
+code in its own lightweight host. PoB @POB_VERSION@ is bundled, and the app
 updates itself from the official repository through PoB's own "Update" button.
 
 ### macOS (Apple Silicon)
@@ -36,6 +36,6 @@ uses, so both see the same builds.
   Frame rates can be tuned in `host-settings.ini` in the data folder.
 - ⌘ works as Ctrl on macOS (⌘C, ⌘V, ⌘Z, ⌘S).
 - This is not an official release of Path of Building. Report problems with the
-  native host here, not to the PoB Community.
+  native port here, not to the PoB Community.
 
 Host @TAG@.
