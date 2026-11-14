@@ -18,7 +18,8 @@ fi
 
 id=""
 for _ in $(seq 1 36); do
-    id="$(gh run list --limit 20 --json databaseId,headSha,headBranch \
+    # Only the Build workflow: Dependabot's own runs carry the same commit.
+    id="$(gh run list --workflow build.yml --limit 20 --json databaseId,headSha,headBranch \
         --jq "[.[] | select($filter)][0].databaseId // empty")"
     [ -n "$id" ] && break
     sleep 5
